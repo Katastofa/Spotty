@@ -1,0 +1,491 @@
+#include <Wire.h>
+#include <Adafruit_PWMServoDriver.h>
+
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();  // Адрес по умолчанию 0x40
+
+
+int servoChannels[12] = {1, 2, 3, 5, 6, 7, 9, 10, 11, 13, 14, 15};
+
+// Slopes из таблицы (pwm/deg)
+float slopes[12] = {2.18, -1.50, 2.30, 2.22, 1.81, 3.27, 1.29, 1.59, 2.17, 1.17, 1.59, 3.13};
+
+// Center PWM из таблицы
+int centerPWMs[12] = {304, 236, 396, 300, 338, 352, 384, 357, 402, 394, 357, 359};
+
+// Offsets для корректировки колен до 90°
+int angleOffsets[12] = {
+  35,    // FR_side (index 0)
+  50,    // FR_fwd (1)
+  0,    // FR_knee (2)
+  30,    // FL_side (3)
+  50,    // FL_fwd (4)
+  -5,   // FL_knee (5)
+  0,     // BR_side (6)
+80,   // BR_fwd (7)
+  -30,   // BR_knee (8)
+  -10,   // BL_side (9)
+  90,    // BL_fwd (10)
+  15     // BL_knee (11)
+};
+
+#define SERVO_MIN 100  // Минимальный импульс для MG996R
+#define SERVO_MAX 500  // Максимальный импульс
+
+// Параметры шага
+int stepHeight = 40;
+int stepLength = 15;
+int stepSwing = 10;
+int cogShift = 10;
+int stepDelay = 300;
+int smoothSteps = 60;
+
+// Определение лап (индексы: side, fwd, knee)
+const int FR[3] = {0, 1, 2};
+const int FL[3] = {3, 4, 5};
+const int BR[3] = {6, 7, 8};
+const int BL[3] = {9, 10, 11};
+
+void setup() {
+  Serial.begin(9600);
+  pwm.begin();
+  pwm.setPWMFreq(50);  // 50 Гц для серво
+  delay(10);
+  setNeutralStance();  // Установить стойку
+  Serial.println("Робособака готова. Команды:");
+  Serial.println("Статические позы: 1 - лежа, 2 - стоя, 3 - сидя");
+  Serial.println("Локальные движения (добавь букву лапы: F/R/B/L, напр. 4F для FR): 4 - поднять/опустить, 5 - дай лапу, 6 - отведение в сторону, 7 - сгиб/разгиб колена");
+  Serial.println("Перемещение корпуса: 8 - наклон вперед, 9 - назад, a - влево, b - вправо, c - опустить корпус, d - поднять");
+  Serial.println("Ходьба: t - трот, f - кроул, p - пейс, g - галоп");
+  Serial.println("Повороты: r - на месте, s - плавный во время движения (с t или f)");
+  Serial.println("Трюки: j - прыжок, n - танец, o - поклон, k - качание корпусом");
+  Serial.println("h+/- для stepHeight, l+/- для stepLength");
+}
+
+void loop() {
+  if (Serial.available()) {
+    char cmd = Serial.read();
+    char leg = ' ';  // Для команд с лапой
+    if (Serial.available()) leg = Serial.read();  // Читаем второй символ если есть
+
+    switch (cmd) {
+      case '1': setLyingPose(); break;
+      case '2': setStandingPose(); break;
+      case '3': setSittingPose(); break;
+      case '4': liftLowerLeg(getLegFromChar(leg)); break;
+      case '5': givePaw(getLegFromChar(leg)); break;
+      case '6': abductLeg(getLegFromChar(leg)); break;
+      case '7': bendExtendKnee(getLegFromChar(leg)); break;
+      case '8': tiltBodyForward(); break;
+      case '9': tiltBodyBackward(); break;
+      case 'a': tiltBodyLeft(); break;
+      case 'b': tiltBodyRight(); break;
+      case 'c': lowerBody(); break;
+      case 'd': raiseBody(); break;
+      case 't': forwardTrotStep(); break;
+      case 'f': forwardCreepStep(); break;
+      case 'p': forwardPaceStep(); break;
+      case 'g': forwardGallopStep(); break;
+      case 'r': turnInPlace(); break;
+      case 's': smoothTurnDuringMovement(); break;  // Можно комбинировать с ходьбой
+      case 'j': jumpTrick(); break;
+      case 'n': danceTrick(); break;
+      case 'o': bowTrick(); break;
+      case 'k': shakeBodyTrick(); break;
+      case 'h': stepHeight += 5; Serial.println("stepHeight: " + String(stepHeight)); break;
+      case 'H': stepHeight -= 5; Serial.println("stepHeight: " + String(stepHeight)); break;
+      case 'l': stepLength += 5; Serial.println("stepLength: " + String(stepLength)); break;
+      case 'L': stepLength -= 5; Serial.println("stepLength: " + String(stepLength)); break;
+    }
+  }
+}
+
+// Получить массив лапы по символу (F=FR, L=FL, B=BL, R=BR)
+const int* getLegFromChar(char c) {
+  if (c == ' ') {
+    Serial.println("Ошибка: укажите букву лапы (F, L, B, R)");
+    return NULL;  // Возврат NULL — в loop() проверьте на NULL и не выполняйте
+  }
+  switch (c) {
+    case 'F': return FR;
+    case 'L': return FL;
+    case 'B': return BL;
+    case 'R': return BR;
+    
+    default: Serial.println("Ошибка: неизвестная лапа, используем BL"); return BL;
+  }
+}
+
+// Установить угол с учётом slopes, centerPWMs и offsets
+void setServo(int index, int angle) {
+  int channel = servoChannels[index];
+  int adjustedAngle = angle + angleOffsets[index];
+  
+  // Инверсия для боковых плеч FL и FR (indexes 6 и 9)
+  if (index == 6 || index == 9) {
+    adjustedAngle = 180 - adjustedAngle;
+  }
+  
+  // Инверсия для BL_fwd (index 1) и возможно других
+  if (index == 1 || index == 7) {  // BL_fwd и FL_fwd инверсия?
+    adjustedAngle = 180 - adjustedAngle;
+  }
+  
+  adjustedAngle = constrain(adjustedAngle, 0, 180);
+  int pulse = centerPWMs[index] + (adjustedAngle - 90) * slopes[index];
+  pulse = constrain(pulse, SERVO_MIN, SERVO_MAX);
+  pwm.setPWM(channel, 0, pulse);
+}
+
+// Плавное изменение угла
+void smoothSetServo(int index, int startAngle, int endAngle, int steps, int delayMs) {
+  for (int i = 0; i <= steps; i++) {
+    int angle = startAngle + (endAngle - startAngle) * i / steps;
+    setServo(index, angle);
+    delay(delayMs / steps);
+  }
+}
+
+// Нейтральная стойка (стоя)
+void setNeutralStance() {
+  for (int i = 0; i < 12; i++) {
+    setServo(i, 90);
+  }
+  Serial.println("Нейтральная стойка установлена.");
+}
+
+// 1. Статика
+// Лёжа: лапки согнуты, корпус низко (колени согнуты, fwd в 90, side в 90)
+void setLyingPose() {
+  int knees[] = {2, 5, 8, 11};  // FR_knee, FL_knee, BR_knee, BL_knee
+  for (int i = 0; i < 4; i++) {
+    if (knees[i] == FL[2] || knees[i] == BL[2]) {  // FL_knee и BL_knee
+      smoothSetServo(knees[i], 90, 30, smoothSteps, stepDelay);  // Тест инверсии: меньший угол для сгибания
+    } else {
+      smoothSetServo(knees[i], 90, 150, smoothSteps, stepDelay);  // FR_knee, BR_knee сгибаются как прежде
+    }
+  }
+  Serial.println("Поза: Лёжа");
+}
+// Стоя: лапки выпрямлены, корпус на высоте
+void setStandingPose() {
+  setNeutralStance();
+  Serial.println("Поза: Стоя");
+}
+
+// Сидя: задние лапы согнуты, передние прямые
+void setSittingPose() {
+  smoothSetServo(BL[2], 90, 60, smoothSteps, stepDelay);  // BL knee согнуть
+  smoothSetServo(BR[2], 90, 120, smoothSteps, stepDelay);  // BR knee
+  smoothSetServo(FL[2], 90, 90, smoothSteps, stepDelay);   // FL прям
+  smoothSetServo(FR[2], 90, 90, smoothSteps, stepDelay);   // FR прям
+  smoothSetServo(BL[1], 90, 60, smoothSteps, stepDelay);   // Задние fwd назад
+  smoothSetServo(BR[1], 90, 60, smoothSteps, stepDelay);
+  Serial.println("Поза: Сидя");
+}
+
+// 2. Локальные движения лап
+// Поднять/опустить одну лапу (подъём колена, затем опустить)
+void liftLowerLeg(const int leg[3]) {
+  smoothSetServo(leg[2], 90, 90 - stepHeight, smoothSteps, stepDelay);  // Поднять (разогнуть колено?)
+  delay(1000);
+  smoothSetServo(leg[2], 90 - stepHeight, 90, smoothSteps, stepDelay);
+  Serial.println("Лапа поднята/опущена");
+}
+
+// Поднять лапу вперёд («дай лапу»)
+void givePaw(const int leg[3]) {
+  smoothSetServo(leg[1], 90, 90 + stepLength * 2, smoothSteps, stepDelay);  // Fwd вперёд
+  smoothSetServo(leg[2], 90, 90 - stepHeight, smoothSteps, stepDelay);     // Поднять колено
+  delay(1000);
+  smoothSetServo(leg[2], 90 - stepHeight, 90, smoothSteps, stepDelay);
+  smoothSetServo(leg[1], 90 + stepLength * 2, 90, smoothSteps, stepDelay);
+  Serial.println("Дай лапу");
+}
+
+// Отведение лапы в сторону
+void abductLeg(const int leg[3]) {
+  int dir = (leg[0] == 0 || leg[0] == 6) ? -stepSwing * 2 : stepSwing * 2;
+  smoothSetServo(leg[0], 90, 90 + dir, smoothSteps, stepDelay);
+  delay(1000);
+  smoothSetServo(leg[0], 90 + dir, 90, smoothSteps, stepDelay);
+  Serial.println("Отведение лапы в сторону");
+}
+
+// Сгибание/разгибание колена
+void bendExtendKnee(const int leg[3]) {
+  smoothSetServo(leg[2], 90, 120, smoothSteps, stepDelay);  // Согнуть
+  delay(500);
+  smoothSetServo(leg[2], 120, 60, smoothSteps, stepDelay);  // Разогнуть
+  delay(500);
+  smoothSetServo(leg[2], 60, 90, smoothSteps, stepDelay);
+  Serial.println("Сгиб/разгиб колена");
+}
+
+// 3. Перемещение корпуса
+// Наклон вперёд/назад
+void tiltBodyForward() {
+  smoothSetServo(FL[1], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(FR[1], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[1], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[1], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  Serial.println("Наклон вперёд");
+}
+
+void tiltBodyBackward() {
+  smoothSetServo(FL[1], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(FR[1], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[1], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[1], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  Serial.println("Наклон назад");
+}
+
+// Наклон влево/вправо
+void tiltBodyLeft() {
+  smoothSetServo(FL[0], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[0], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(FR[0], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[0], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  Serial.println("Наклон влево");
+}
+
+void tiltBodyRight() {
+  smoothSetServo(FL[0], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[0], 90, 90 - cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(FR[0], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[0], 90, 90 + cogShift * 2, smoothSteps, stepDelay / 2);
+  Serial.println("Наклон вправо");
+}
+
+// Опускание/подъём корпуса (сгиб/разгиб колен)
+void lowerBody() {
+  int knees[] = {2,5,8,11};
+  for (int i = 0; i < 4; i++) {
+    smoothSetServo(knees[i], 90, 120, smoothSteps, stepDelay);
+  }
+  Serial.println("Опускание корпуса");
+}
+
+void raiseBody() {
+  int knees[] = {2,5,8,11};
+  for (int i = 0; i < 4; i++) {
+    smoothSetServo(knees[i], 90, 60, smoothSteps, stepDelay);
+  }
+  Serial.println("Подъём корпуса");
+}
+
+// 4. Ходьба и шаги (используем предыдущие функции, но упрощённо)
+// Trot: диагональные лапы (FR+BL, FL+BR)
+void forwardTrotStep() {
+  liftLeg(FR[0], FR[1], FR[2]);
+  liftLeg(BL[0], BL[1], BL[2]);
+  moveLegForward(FR[1], stepLength);
+  moveLegForward(BL[1], stepLength);
+  lowerLeg(FR[0], FR[1], FR[2]);
+  lowerLeg(BL[0], BL[1], BL[2]);
+  delay(stepDelay / 2);
+
+  liftLeg(FL[0], FL[1], FL[2]);
+  liftLeg(BR[0], BR[1], BR[2]);
+  moveLegForward(FL[1], stepLength);
+  moveLegForward(BR[1], stepLength);
+  lowerLeg(FL[0], FL[1], FL[2]);
+  lowerLeg(BR[0], BR[1], BR[2]);
+  delay(stepDelay / 2);
+
+  Serial.println("Trot шаг завершён.");
+}
+
+// Creep (кроул): по одной лапе
+void forwardCreepStep() {
+  const int* order[4] = {FR, FL, BL, BR};
+  for (int i = 0; i < 4; i++) {
+    liftLeg(order[i][0], order[i][1], order[i][2]);
+    moveLegForward(order[i][1], stepLength);
+    lowerLeg(order[i][0], order[i][1], order[i][2]);
+    delay(stepDelay / 2);
+  }
+  Serial.println("Creep шаг завершён.");
+}
+
+// Pace: боковые лапы (FL+BL, FR+BR)
+void forwardPaceStep() {
+  liftLeg(FL[0], FL[1], FL[2]);
+  liftLeg(BL[0], BL[1], BL[2]);
+  moveLegForward(FL[1], stepLength);
+  moveLegForward(BL[1], stepLength);
+  lowerLeg(FL[0], FL[1], FL[2]);
+  lowerLeg(BL[0], BL[1], BL[2]);
+  delay(stepDelay / 2);
+
+  liftLeg(FR[0], FR[1], FR[2]);
+  liftLeg(BR[0], BR[1], BR[2]);
+  moveLegForward(FR[1], stepLength);
+  moveLegForward(BR[1], stepLength);
+  lowerLeg(FR[0], FR[1], FR[2]);
+  lowerLeg(BR[0], BR[1], BR[2]);
+  delay(stepDelay / 2);
+
+  Serial.println("Pace шаг завершён.");
+}
+
+// Gallop: с фазой прыжка (передние, затем задние, прыжок)
+void forwardGallopStep() {
+  liftLeg(FL[0], FL[1], FL[2]);
+  liftLeg(FR[0], FR[1], FR[2]);
+  moveLegForward(FL[1], stepLength * 2);
+  moveLegForward(FR[1], stepLength * 2);
+  lowerLeg(FL[0], FL[1], FL[2]);
+  lowerLeg(FR[0], FR[1], FR[2]);
+  
+  // Возврат fwd передних лап в нейтраль
+  int flAdjusted = (FL[1] == BL[1] || FL[1] == FL[1]) ? -(stepLength * 2) : (stepLength * 2);  // Логика инверсии
+  smoothSetServo(FL[1], 90 + flAdjusted, 90, smoothSteps, stepDelay);
+  int frAdjusted = (FR[1] == BL[1] || FR[1] == FL[1]) ? -(stepLength * 2) : (stepLength * 2);
+  smoothSetServo(FR[1], 90 + frAdjusted, 90, smoothSteps, stepDelay);
+
+  liftLeg(BL[0], BL[1], BL[2]);
+  liftLeg(BR[0], BR[1], BR[2]);
+  moveLegForward(BL[1], stepLength * 2);
+  moveLegForward(BR[1], stepLength * 2);
+  lowerLeg(BL[0], BL[1], BL[2]);
+  lowerLeg(BR[0], BR[1], BR[2]);
+  
+  // Возврат fwd задних лап в нейтраль
+  int blAdjusted = (BL[1] == BL[1] || BL[1] == FL[1]) ? -(stepLength * 2) : (stepLength * 2);
+  smoothSetServo(BL[1], 90 + blAdjusted, 90, smoothSteps, stepDelay);
+  int brAdjusted = (BR[1] == BL[1] || BR[1] == FL[1]) ? -(stepLength * 2) : (stepLength * 2);
+  smoothSetServo(BR[1], 90 + brAdjusted, 90, smoothSteps, stepDelay);
+
+  // Фаза прыжка: поднять все колени слегка
+  int knees[] = {2,5,8,11};
+  for (int i = 0; i < 4; i++) {
+    smoothSetServo(knees[i], 90, 70, smoothSteps, stepDelay / 2);
+  }
+  delay(300);
+  for (int i = 0; i < 4; i++) {
+    smoothSetServo(knees[i], 70, 90, smoothSteps, stepDelay / 2);
+  }
+  Serial.println("Gallop шаг завершён.");
+}
+
+// 5. Повороты
+// Поворот на месте: сдвиг лап в стороны
+void turnInPlace() {
+  // Поворот влево: правые лапы вперёд, левые назад
+  smoothSetServo(FR[1], 90, 90 + stepLength, smoothSteps, stepDelay);
+  smoothSetServo(BR[1], 90, 90 + stepLength, smoothSteps, stepDelay);
+  smoothSetServo(FL[1], 90, 90 - stepLength, smoothSteps, stepDelay);
+  smoothSetServo(BL[1], 90, 90 - stepLength, smoothSteps, stepDelay);
+  delay(500);
+  setNeutralStance();  // Возврат
+  Serial.println("Поворот на месте");
+}
+
+// Плавный поворот во время движения (добавь к шагу, напр. trot с поворотом)
+void smoothTurnDuringMovement() {
+  // Плавный поворот во время trot-шага (сдвиг side, затем возврат)
+  
+  // Первый диагональный шаг с поворотом
+  liftLeg(FR[0], FR[1], FR[2]);
+  liftLeg(BL[0], BL[1], BL[2]);
+  // Сдвиг side для поворота (правые в +, левые в -)
+  smoothSetServo(FR[0], 90, 90 + stepSwing, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[0], 90, 90 - stepSwing, smoothSteps, stepDelay / 2);
+  moveLegForward(FR[1], stepLength);
+  moveLegForward(BL[1], stepLength);
+  lowerLeg(FR[0], FR[1], FR[2]);
+  lowerLeg(BL[0], BL[1], BL[2]);
+  delay(stepDelay / 2);
+
+  // Второй диагональный шаг с поворотом
+  liftLeg(FL[0], FL[1], FL[2]);
+  liftLeg(BR[0], BR[1], BR[2]);
+  smoothSetServo(FL[0], 90, 90 - stepSwing, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[0], 90, 90 + stepSwing, smoothSteps, stepDelay / 2);
+  moveLegForward(FL[1], stepLength);
+  moveLegForward(BR[1], stepLength);
+  lowerLeg(FL[0], FL[1], FL[2]);
+  lowerLeg(BR[0], BR[1], BR[2]);
+  delay(stepDelay / 2);
+
+  // Возврат всех side-сервов в нейтраль после поворота
+  smoothSetServo(FR[0], 90 + stepSwing, 90, smoothSteps, stepDelay / 2);
+  smoothSetServo(FL[0], 90 - stepSwing, 90, smoothSteps, stepDelay / 2);
+  smoothSetServo(BR[0], 90 + stepSwing, 90, smoothSteps, stepDelay / 2);
+  smoothSetServo(BL[0], 90 - stepSwing, 90, smoothSteps, stepDelay / 2);
+
+  Serial.println("Плавный поворот во время движения");
+}
+
+// 6. Доп. трюки
+// Прыжок: поднять все колени, затем опустить
+void jumpTrick() {
+  raiseBody();  // Поднять
+  delay(200);
+  lowerBody();  // Опустить
+  Serial.println("Прыжок");
+}
+
+// Танец: синхронные движения лап
+void danceTrick() {
+  for (int i = 0; i < 3; i++) {
+    liftLeg(FL[0], FL[1], FL[2]);
+    liftLeg(FR[0], FR[1], FR[2]);
+    lowerLeg(FL[0], FL[1], FL[2]);
+    lowerLeg(FR[0], FR[1], FR[2]);
+    liftLeg(BL[0], BL[1], BL[2]);
+    liftLeg(BR[0], BR[1], BR[2]);
+    lowerLeg(BL[0], BL[1], BL[2]);
+    lowerLeg(BR[0], BR[1], BR[2]);
+  }
+  Serial.println("Танец");
+}
+
+// Поклон: передние лапы вперёд, корпус вниз
+void bowTrick() {
+  smoothSetServo(FL[1], 90, 90 - stepLength * 2, smoothSteps, stepDelay);
+  smoothSetServo(FR[1], 90, 90 - stepLength * 2, smoothSteps, stepDelay);
+  lowerBody();
+  delay(1000);
+  raiseBody();
+  smoothSetServo(FL[1], 90 - stepLength * 2, 90, smoothSteps, stepDelay);
+  smoothSetServo(FR[1], 90 - stepLength * 2, 90, smoothSteps, stepDelay);
+  Serial.println("Поклон");
+}
+
+// Качание корпусом: наклоны в стороны
+void shakeBodyTrick() {
+  for (int i = 0; i < 3; i++) {
+    tiltBodyLeft();
+    delay(300);
+    tiltBodyRight();
+    delay(300);
+  }
+  setNeutralStance();
+  Serial.println("Качание корпусом");
+}
+
+// Смещение CoG (упрощённая версия для баланса)
+void shiftCoGForLeg(const int leg[3], int shift) {
+  // Реализация аналогична предыдущей, но для простоты опущена полная
+  // Можно расширить по необходимости
+}
+
+// Функции liftLeg, moveLegForward, lowerLeg (как в предыдущем коде)
+void liftLeg(int sideIdx, int fwdIdx, int kneeIdx) {
+  int swingDir = (sideIdx == BL[0] || sideIdx == FL[0]) ? -stepSwing : stepSwing;
+  smoothSetServo(sideIdx, 90, 90 + swingDir, smoothSteps, stepDelay / 2);
+  smoothSetServo(kneeIdx, 90, 90 + stepHeight, smoothSteps, stepDelay);
+}
+
+void moveLegForward(int fwdIdx, int length) {
+  int adjustedLength = (fwdIdx == BL[1] || fwdIdx == FL[1]) ? -length : length;
+  smoothSetServo(fwdIdx, 90, 90 + adjustedLength, smoothSteps, stepDelay);
+}
+
+void lowerLeg(int sideIdx, int fwdIdx, int kneeIdx) {
+  smoothSetServo(kneeIdx, 90 + stepHeight, 90, smoothSteps, stepDelay);
+  int swingDir = (sideIdx == BL[0] || sideIdx == FL[0]) ? -stepSwing : stepSwing;
+  smoothSetServo(sideIdx, 90 + swingDir, 90, smoothSteps, stepDelay / 2);
+  // Возврат fwd если нужно, но в шаге отдельно
+}

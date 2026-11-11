@@ -1,0 +1,34 @@
+# backups and archives
+*.bak
+*.rar
+*.zip
+*.7z
+_to_delete/
+backup_*/
+
+# build output
+build/
+*.bin
+*.elf
+*.exe
+.pio/
+
+# editors and OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# python
+__pycache__/
+*.pyc
+
+# large media and third-party models: kept outside git
+*.mp4
+*.blend
+*.blend1
+*.stl
+*.step
+*.3mf
+

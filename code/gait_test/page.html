@@ -1,0 +1,327 @@
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spotty — пульт</title>
+<style>
+:root{--bg:#12141a;--pan:#191c24;--pan2:#1f232d;--ln:#2c3140;--tx:#dfe3ec;--dim:#8b93a7;
+--ok:#4ec98a;--warn:#e8b64c;--bad:#e5604d;--acc:#5b9df9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.45 ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+h2{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:0 0 10px;font-weight:600}
+.bar{position:sticky;top:0;z-index:9;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+padding:10px 16px;background:var(--pan);border-bottom:1px solid var(--ln)}
+.brand{font-weight:700;letter-spacing:.1em}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px;background:var(--dim)}
+.mode{padding:3px 12px;border-radius:4px;background:var(--pan2);border:1px solid var(--ln);font-weight:700}
+.m3{background:#1d3a2a;border-color:var(--ok);color:var(--ok)}
+.m1{background:#3a3320;border-color:var(--warn);color:var(--warn)}
+.flags{display:flex;gap:8px;flex-wrap:wrap}
+.f{padding:2px 8px;border-radius:3px;background:var(--pan2);border:1px solid var(--ln);color:var(--dim);font-size:11px}
+.f.on{color:var(--ok);border-color:#2f6b4c}
+.f.no{color:var(--bad);border-color:#6b2f2a}
+.sp{flex:1}
+button{font:inherit;color:var(--tx);background:var(--pan2);border:1px solid var(--ln);
+border-radius:4px;padding:6px 11px;cursor:pointer}
+button:hover{border-color:var(--acc)}
+button:active{transform:translateY(1px)}
+.stop{background:#7d2118;border-color:#b4392c;color:#fff;font-weight:700;padding:9px 22px;font-size:15px}
+.rel{background:#4a3a12;border-color:#7d6320;color:#ffd98a;font-weight:600;padding:9px 16px}
+.wrap{display:grid;grid-template-columns:minmax(430px,1fr) minmax(430px,1fr);gap:14px;padding:14px;align-items:start}
+@media(max-width:960px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--pan);border:1px solid var(--ln);border-radius:6px;padding:13px;margin-bottom:14px}
+.row{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+label{color:var(--dim);font-size:11px;min-width:0}
+input[type=number],input[type=text]{font:inherit;width:76px;background:#0e1015;color:var(--tx);
+border:1px solid var(--ln);border-radius:4px;padding:5px 7px}
+input:focus{outline:none;border-color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;color:var(--dim);font-weight:600;font-size:10px;letter-spacing:.08em;
+text-transform:uppercase;padding:0 6px 6px;border-bottom:1px solid var(--ln)}
+td{padding:4px 6px;border-bottom:1px solid #22262f}
+tr:last-child td{border-bottom:none}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.trk{position:relative;height:9px;background:#0e1015;border:1px solid var(--ln);border-radius:2px;min-width:110px}
+.trk i{position:absolute;top:-1px;bottom:-1px;width:3px;background:var(--acc);border-radius:1px}
+.trk u{position:absolute;top:0;bottom:0;width:1px;background:#3d4354}
+.gap-ok{color:var(--ok)}.gap-w{color:var(--warn)}.gap-b{color:var(--bad);font-weight:700}
+.kv{display:grid;grid-template-columns:auto auto;gap:3px 16px;font-size:12px}
+.kv b{font-weight:400;color:var(--dim)}
+.kv span{text-align:right;font-variant-numeric:tabular-nums}
+#log{background:#0b0d12;border:1px solid var(--ln);border-radius:4px;padding:9px;height:340px;
+overflow:auto;white-space:pre-wrap;word-break:break-word;font-size:11.5px;line-height:1.4;color:#c3cad8}
+.note{color:var(--dim);font-size:11px;margin-top:8px;line-height:1.5}
+.danger{color:var(--warn)}
+.gaits button{font-size:12px}
+.gaits button.sel{border-color:var(--acc);background:#1b2b45}
+.gaits button.air{border-color:#6b4a1f}
+</style>
+
+<div class="bar">
+  <span class="brand">SPOTTY</span>
+  <span id="mode" class="mode">—</span>
+  <span class="flags">
+    <span class="f" id="fNet"><i class="dot" id="dNet"></i>сеть</span>
+    <span class="f" id="fEng">ШИМ</span>
+    <span class="f" id="fPose">поза</span>
+    <span class="f" id="fTab">таблицы</span>
+    <span class="f" id="fHb">пульт</span>
+  </span>
+  <span class="sp"></span>
+  <button class="stop" onclick="cmd('x')">СТОП</button>
+  <button class="rel" onclick="rel()">снять ШИМ</button>
+</div>
+
+<div class="wrap">
+<div>
+
+  <div class="card">
+    <h2>Действия</h2>
+    <div class="row">
+      <button onclick="cmd('p')">предполётная&nbsp;p</button>
+      <button onclick="cmd('n')">взвод и поза&nbsp;n</button>
+      <button onclick="cmd('w')">ПУСК&nbsp;w</button>
+      <button onclick="cmd('s')">параметры&nbsp;s</button>
+      <button onclick="cmd('h')">справка&nbsp;h</button>
+      <button onclick="ramp()" class="danger">разгон&nbsp;z</button>
+    </div>
+    <div class="row">
+      <button onclick="cmd('t 0')">шагание на месте&nbsp;·&nbsp;t 0</button>
+      <button onclick="cmd('t 12')">вернуть размах&nbsp;·&nbsp;t 12</button>
+      <button onclick="cmd('c 99')">c 99</button>
+      <button onclick="cmd('c 60')">c 60</button>
+    </div>
+    <div class="note">«n» даёт 5 секунд обратного отсчёта до первой подачи ШИМ.
+      Любая команда во время отсчёта его отменяет. «z» — только на подвесе.</div>
+  </div>
+
+  <div class="card">
+    <h2>Походка</h2>
+    <div class="row gaits" id="gaits"></div>
+    <div class="note danger">bound и gallop — ТОЛЬКО НА ВЕСУ: у них нет
+      одновременной опоры на перед и зад, корпус валится. Это свойство
+      фазировки, настройками не лечится.</div>
+    <div class="note">Выбор походки берёт её пресет и перезаписывает
+      размах, подъём, duty и период.</div>
+  </div>
+
+  <div class="card">
+    <h2>Параметры</h2>
+    <div class="row">
+      <label>размах бедра ±</label><input type="number" id="p_t" step="1"><button onclick="p('t')">t</button>
+      <label>подъём колена</label><input type="number" id="p_k" step="1"><button onclick="p('k')">k</button>
+    </div>
+    <div class="row">
+      <label>duty</label><input type="number" id="p_d" step="0.05"><button onclick="p('d')">d</button>
+      <label>период, мс</label><input type="number" id="p_T" step="50"><button onclick="p('T')">T</button>
+    </div>
+    <div class="row">
+      <label>трим корпуса</label><input type="number" id="p_b" step="1"><button onclick="p('b')">b</button>
+      <label>присед колена</label><input type="number" id="p_q" step="5"><button onclick="p('q')">q</button>
+    </div>
+    <div class="row">
+      <label>°/с в походке</label><input type="number" id="p_m" step="5"><button onclick="p('m')">m</button>
+      <label>циклов для w</label><input type="number" id="p_c" step="1"><button onclick="p('c')">c</button>
+    </div>
+    <div class="row">
+      <label>размах хипа ±</label><input type="number" id="p_a" step="1"><button onclick="p('a')">a</button>
+      <label>звенья k</label><input type="number" id="p_L" step="0.01"><button onclick="p('L')">L</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label>траектория</label>
+      <button onclick="cmd('f 0')">дуга</button><button onclick="cmd('f 1')">плоская</button>
+      <label style="margin-left:10px">перенос</label>
+      <button onclick="cmd('S 0')">линейн.</button><button onclick="cmd('S 1')">сглаж.</button>
+    </div>
+    <div class="row">
+      <label>разворот</label>
+      <button onclick="cmd('u 1')">влево</button><button onclick="cmd('u 0')">выкл</button>
+      <button onclick="cmd('u -1')">вправо</button>
+    </div>
+    <div class="note">Параметры меняются только на стоящем роботе — во время
+      хода придёт отказ. Каждое изменение само прогоняет предполётную проверку;
+      читать её результат в логе справа.</div>
+  </div>
+
+  <div class="card">
+    <h2>Своя команда</h2>
+    <div class="row">
+      <input type="text" id="raw" placeholder="например: g walk" style="flex:1;width:auto"
+             onkeydown="if(event.key==='Enter')sendRaw()">
+      <button onclick="sendRaw()">отправить</button>
+    </div>
+    <div class="note">Строка уходит в тот же разбор, что и ввод в мониторе порта.</div>
+  </div>
+
+</div>
+<div>
+
+  <div class="card">
+    <h2>Суставы — угол и запас до жёсткого предела</h2>
+    <table>
+      <thead><tr><th>нога</th><th>сустав</th><th class="num">ch</th><th class="num">угол</th>
+      <th>положение в окне</th><th class="num">запас</th><th class="num">окно</th></tr></thead>
+      <tbody id="joints"></tbody>
+    </table>
+    <div class="note">Запас — расстояние до ближайшей жёсткой границы. Жёсткая
+      граница уже измеренной на 3°, а измеренная снята с отступом 3° от касания
+      рамы: суммарно 6°. Обрезка по пределу = аварийный стоп.</div>
+  </div>
+
+  <div class="card">
+    <h2>Состояние</h2>
+    <div class="kv" id="kv"></div>
+  </div>
+
+  <div class="card">
+    <h2>Лог <span id="lost" style="color:var(--bad);display:none">— часть текста потеряна</span></h2>
+    <div id="log"></div>
+    <div class="row" style="margin-top:8px">
+      <button onclick="document.getElementById('log').textContent=''">очистить окно</button>
+      <label><input type="checkbox" id="auto" checked> автопрокрутка</label>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<script>
+var GAITS=[["trot","диагональ, 2 ноги"],["pace","борт, 2 ноги"],
+["bound","ТОЛЬКО НА ВЕСУ",1],["walk","3 ноги, устойчива"],["gallop","ТОЛЬКО НА ВЕСУ",1]];
+var logAt=0, live=false, lastSt=null;
+
+function el(i){return document.getElementById(i)}
+
+// POST, а не GET: GET-команду могла бы подать любая посторонняя страница,
+// открытая в этом же браузере (<img src=".../api/cmd?c=n">). См. spotty_web.h.
+function cmd(c){
+  fetch('/api/cmd?c='+encodeURIComponent(c),{method:'POST'}).then(function(r){
+    if(!r.ok) r.text().then(function(t){addLine('[панель] команда "'+c+'" отклонена: '+t)});
+  }).catch(function(){addLine('[панель] нет связи с роботом')});
+}
+function rel(){ if(confirm('Снять ШИМ? Серво станут мягкими — стоящий робот сложится.')) cmd('r'); }
+function ramp(){ if(confirm('Режим разгона ищет предел скорости железа.\nТолько на ПОДВЕСЕ. Продолжить?')) cmd('z'); }
+function p(k){ var v=el('p_'+k).value; if(v!=='') cmd(k+' '+v); }
+function sendRaw(){ var v=el('raw').value.trim(); if(v){cmd(v); el('raw').value='';} }
+
+function addLine(s){
+  var L=el('log'); L.textContent+=s+"\n";
+  if(el('auto').checked) L.scrollTop=L.scrollHeight;
+}
+
+function flag(id,on,txt){
+  var e=el(id); e.className='f'+(on===1?' on':on===-1?' no':'');
+  if(txt!==undefined) e.textContent=txt;
+}
+
+function drawGaits(sel){
+  var h='';
+  for(var i=0;i<GAITS.length;i++){
+    h+='<button class="'+(i===sel?'sel ':'')+(GAITS[i][2]?'air':'')+'" title="'+GAITS[i][1]+
+       '" onclick="cmd(\'g '+i+'\')">'+GAITS[i][0]+'</button>';
+  }
+  el('gaits').innerHTML=h;
+}
+
+var LEGN=['FR','FL','BR','BL'], JN=['хип','бедро','колено'];
+
+var worstName='';
+function drawJoints(j){
+  var h='',worst=1e9;
+  for(var i=0;i<j.length;i++){
+    var q=j[i], span=q.hi-q.lo, frac=span>0?(q.a-q.lo)/span:0;
+    if(frac<0)frac=0; if(frac>1)frac=1;
+    var gap=Math.min(q.a-q.lo,q.hi-q.a);
+    if(gap<worst){worst=gap; worstName=LEGN[i/3|0]+' '+JN[i%3]+' ch'+q.ch;}
+    var cls=gap<5?'gap-b':gap<12?'gap-w':'gap-ok';
+    h+='<tr><td>'+(i%3===0?LEGN[i/3|0]:'')+'</td><td>'+JN[i%3]+'</td>'+
+       '<td class="num">'+q.ch+'</td><td class="num">'+q.a.toFixed(1)+'</td>'+
+       '<td><div class="trk"><u style="left:50%"></u><i style="left:calc('+(frac*100).toFixed(1)+'% - 1px)"></i></div></td>'+
+       '<td class="num '+cls+'">'+gap.toFixed(1)+'</td>'+
+       '<td class="num" style="color:var(--dim)">'+q.lo.toFixed(0)+'…'+q.hi.toFixed(0)+'</td></tr>';
+  }
+  el('joints').innerHTML=h;
+  return worst;
+}
+
+// Поля тянутся за скетчем (параметр могли поменять из монитора порта),
+// но НЕ перебивают то, что оператор сейчас набирает.
+function sync(id,v){
+  var e=el(id);
+  if(document.activeElement===e) return;
+  var t=String(v);
+  if(e.value!==t) e.value=t;
+}
+function fillFields(s){
+  sync('p_t',s.amp); sync('p_k',s.knee); sync('p_d',s.duty);
+  sync('p_T',s.per); sync('p_b',s.trim); sync('p_q',s.crouch);
+  sync('p_m',s.rate); sync('p_c',s.cyc); sync('p_a',s.hip); sync('p_L',s.link);
+}
+
+function poll(){
+  return fetch('/api/state').then(function(r){return r.json()}).then(function(s){
+    if(s.busy) return;
+    live=true;
+    var M=el('mode'); M.textContent=s.modeName; M.className='mode'+(s.mode===3?' m3':s.mode===1?' m1':'');
+    flag('dNet',0); el('dNet').style.background=s.net===2?'var(--ok)':'var(--bad)';
+    flag('fEng', s.eng?1:-1, s.eng?'ШИМ подан':'ШИМ снят');
+    flag('fPose',s.pose?1:0, s.pose?'поза есть':'позы нет');
+    flag('fTab', s.tab?1:-1, s.tab?'таблицы ok':'ТАБЛИЦЫ НЕ ПРОШЛИ');
+    flag('fHb',  s.hb?1:0,   s.hb?'пульт = браузер':'пульт = USB');
+    drawGaits(s.gi);
+    var worst=drawJoints(s.j);
+    fillFields(s); lastSt=s;
+    el('kv').innerHTML=
+      kv('походка',GAITS[s.gi][0]+(s.ramping?' · РАЗГОН':''))+
+      kv('фаза',s.phase.toFixed(2)+'  ·  цикл '+(Math.floor(s.done)+1)+'/'+s.cyc)+
+      kv('размах / подъём',s.amp.toFixed(1)+'° / '+s.knee.toFixed(1)+'°')+
+      kv('duty / период',s.duty.toFixed(2)+' / '+s.per.toFixed(0)+' мс')+
+      kv('присед / трим',s.crouch.toFixed(0)+'° / '+(s.trim>=0?'+':'')+s.trim.toFixed(1)+'°')+
+      kv('траектория',(s.flat?'плоская':'дуга')+' · перенос '+(s.smooth?'сглаж.':'линейн.'))+
+      kv('звенья k',s.link.toFixed(2)+(Math.abs(s.link-1)<1e-6?'  (ДОПУЩЕНИЕ)':''))+
+      kv('разворот',s.turn?(s.turn>0?'влево':'вправо')+' ±'+s.hip.toFixed(1)+'°':'выключен')+
+      kv('скорость','нужно '+s.peak.toFixed(0)+' из '+s.rate.toFixed(0)+' °/с',s.peak>s.rate?'bad':'')+
+      kv('наименьший запас',worst.toFixed(1)+'° · '+worstName,worst<5?'bad':worst<12?'warn':'')+
+      kv('срабатываний клампа',s.hits,s.hits?'bad':'')+
+      kv('пропущено тиков',s.over,s.over?'warn':'')+
+      kv('шина, мкс',s.bus+' (макс '+s.busmax+')')+
+      kv('свободно памяти',(s.heap/1024).toFixed(0)+' КБ')+
+      kv('аптайм',(s.ms/1000).toFixed(0)+' с');
+  }).catch(function(){
+    if(live){live=false; el('mode').textContent='НЕТ СВЯЗИ'; el('mode').className='mode';}
+  });
+}
+function kv(k,v,c){
+  var col=c==='bad'?'var(--bad)':c==='warn'?'var(--warn)':'inherit';
+  return '<b>'+k+'</b><span style="color:'+col+'">'+v+'</span>';
+}
+
+function pollLog(){
+  return fetch('/api/log?from='+logAt).then(function(r){return r.json()}).then(function(d){
+    if(d.lost) el('lost').style.display='inline';
+    logAt=d.next;
+    if(d.txt){
+      var L=el('log'); L.textContent+=d.txt;
+      if(L.textContent.length>120000) L.textContent=L.textContent.slice(-90000);
+      if(el('auto').checked) L.scrollTop=L.scrollHeight;
+    }
+  }).catch(function(){});
+}
+
+document.addEventListener('keydown',function(e){
+  if(e.target.tagName==='INPUT') return;
+  if(e.key==='x'){cmd('x');}
+});
+
+/*
+ * ОДИН ЦИКЛ, А НЕ ДВА ТАЙМЕРА. WebServer на ESP32 обслуживает РОВНО ОДНО
+ * соединение за раз и держит занятого клиента до 5 секунд. Два независимых
+ * setInterval регулярно совпадали бы, браузер открывал бы второй сокет, и
+ * ответы вставали бы на секунды — а watchdog принял бы это за потерю пульта
+ * и дал 'x' посреди прогона. Запросы идут строго по очереди, следующий круг
+ * заводится только после ответа на предыдущий.
+ */
+function tick(){
+  poll().then(pollLog).catch(function(){}).then(function(){ setTimeout(tick,250); });
+}
+drawGaits(0);
+tick();
+</script>

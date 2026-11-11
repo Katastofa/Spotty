@@ -1,0 +1,2804 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Spotty — пульт</title>
+<style>
+/* Шрифты — только системные: на выставке интернета может не быть.
+   Bahnschrift есть в каждой Windows 10/11 и даёт тот же узкий «приборный» вид. */
+:root{
+  --bg:#090b0c;--pan:#101315;--pan2:#15191c;--ln:#222a2e;--ln2:#2e383d;
+  --tx:#e4ebe6;--dim:#86918c;--dim2:#5d6763;
+  --acc:#b4f23a;--acc2:#8fd62a;--accbg:rgba(180,242,58,.12);
+  --ok:#b4f23a;--warn:#ffc14d;--bad:#ff5a4d;--sim:#5eead4;
+  --ui:"Bahnschrift","DIN Alternate","Roboto Condensed","Arial Narrow",system-ui,sans-serif;
+  --mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{overflow-x:hidden}
+body{margin:0;background:radial-gradient(1200px 600px at 60% -10%,#131a14 0%,var(--bg) 55%);color:var(--tx);
+  font:13px/1.4 var(--ui);letter-spacing:.01em}
+button{white-space:nowrap;font:inherit;color:var(--tx);background:var(--pan2);border:1px solid var(--ln2);border-radius:5px;
+  padding:6px 10px;cursor:pointer;touch-action:manipulation}
+button:hover{border-color:var(--acc2)}
+button:active{transform:translateY(1px)}
+input[type=number],input[type=text]{font:13px var(--mono);width:74px;background:#0a0d0e;color:var(--tx);
+  border:1px solid var(--ln2);border-radius:4px;padding:5px 7px}
+input:focus{outline:none;border-color:var(--acc)}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ---------- шапка ---------- */
+.top{display:flex;align-items:center;gap:16px;overflow:hidden;padding:10px 18px;border-bottom:1px solid var(--ln)}
+.logo{display:flex;align-items:center;gap:12px}
+.logo svg{width:36px;height:36px}
+.logo b{display:block;font-size:30px;line-height:1;letter-spacing:.32em;color:var(--acc);font-weight:700}
+.logo small{display:block;font-size:10px;letter-spacing:.32em;color:var(--dim);margin-top:4px;white-space:nowrap}
+.tabs{display:flex;gap:4px;margin-left:18px}
+.tabs button{border:0;background:none;color:var(--dim);font-size:15px;letter-spacing:.06em;padding:8px 13px;border-radius:3px}
+.tabs button.on{background:var(--acc);color:#0b0f05;font-weight:700}
+.sp{flex:1}
+.stat{display:flex;align-items:center;gap:8px;font-size:14px;letter-spacing:.08em;color:var(--dim)}
+.stat .pip{width:10px;height:10px;border-radius:50%;background:var(--dim2);box-shadow:0 0 0 3px rgba(255,255,255,.04)}
+.stat.ok{color:var(--acc)}.stat.ok .pip{background:var(--acc);box-shadow:0 0 10px var(--acc)}
+.stat.bad{color:var(--bad)}.stat.bad .pip{background:var(--bad)}
+.stat.sim{color:var(--sim)}.stat.sim .pip{background:var(--sim);box-shadow:0 0 10px var(--sim)}
+.vsep{width:1px;height:24px;background:var(--ln2)}
+.seg{display:inline-flex;border:1px solid var(--ln2);border-radius:5px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent;color:var(--dim);font-weight:600;letter-spacing:.06em;padding:6px 12px}
+.seg button.on.live{background:var(--accbg);color:var(--acc)}
+.seg button.on.sim{background:rgba(94,234,212,.12);color:var(--sim)}
+.modeTag{display:none;font:600 13px var(--ui);letter-spacing:.1em;padding:4px 10px;border-radius:4px;border:1px solid var(--ln2);color:var(--tx)}
+.modeTag.walk{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
+.modeTag.arm{border-color:var(--warn);color:var(--warn)}
+.stop{background:#8a1f16;border-color:#c23a2c;color:#fff;font-weight:700;letter-spacing:.12em;padding:9px 22px;font-size:15px}
+.stop:hover{border-color:#ff7a6b}
+.rel{background:#3a2f10;border-color:#7d6320;color:#ffd98a;font-weight:600;padding:9px 14px}
+.flags{display:none}
+
+/* ---------- сетка пульта ---------- */
+.page{display:none;padding:12px 14px}
+.page.on{display:block}
+.dash{display:grid;grid-template-columns:272px minmax(0,1fr);gap:12px}
+.col{display:flex;flex-direction:column;gap:12px}
+.main{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;align-content:start}
+.s7{grid-column:span 7}.s5{grid-column:span 5}.s4{grid-column:span 4}.s3{grid-column:span 3}.s2{grid-column:span 2}.s6{grid-column:span 6}
+@media(max-width:1500px){.main .s2{grid-column:span 3}.main .s3{grid-column:span 4}.main .r2 .s3{grid-column:span 6}}
+@media(max-width:1250px){.dash{grid-template-columns:1fr}.main>*{grid-column:1/-1 !important}}
+.pn{overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.012),transparent 40%),var(--pan);border:1px solid var(--ln);border-radius:6px;padding:12px 14px;position:relative;min-width:0}
+.pn::before{content:"";position:absolute;left:-1px;top:-1px;width:14px;height:14px;border-left:2px solid var(--acc2);border-top:2px solid var(--acc2);border-radius:6px 0 0 0;opacity:.55}
+.pn h2{margin:0 0 10px;font-size:13px;letter-spacing:.12em;white-space:nowrap;font-weight:600;color:#cfd8d2;text-transform:uppercase;display:flex;align-items:center;gap:8px}
+.pn h2 small{font-size:11px;letter-spacing:.06em;color:var(--dim);text-transform:none;font-weight:400}
+.pn h2 .sp{flex:1}
+.rows{display:grid;grid-template-columns:auto 1fr auto;gap:7px 10px;align-items:center}
+.rows .dot{width:9px;height:9px;border-radius:50%;background:var(--dim2)}
+.dot.ok{background:var(--acc);box-shadow:0 0 8px rgba(180,242,58,.6)}.dot.warn{background:var(--warn)}.dot.bad{background:var(--bad)}.dot.sim{background:var(--sim)}
+.rows .v{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap}
+.v.ok{color:var(--acc)}.v.warn{color:var(--warn)}.v.bad{color:var(--bad)}.v.dim{color:var(--dim)}
+.tile{display:flex;align-items:center;gap:12px}
+.tile .ic{width:46px;height:46px;border-radius:6px;background:var(--acc);display:grid;place-items:center;flex:none}
+.tile .ic svg{width:28px;height:28px}
+.tile b{display:block;font-size:19px;letter-spacing:.06em;color:var(--acc);font-weight:600}
+.tile span{color:var(--dim);font-size:12px}
+.big{font:600 22px var(--mono);letter-spacing:-.01em}
+.bar{height:6px;background:#1c2326;border-radius:3px;overflow:hidden;position:relative}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--acc);border-radius:3px}
+.bar i.warn{background:var(--warn)}.bar i.bad{background:var(--bad)}
+.lbl{color:var(--dim);font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin:10px 0 5px}
+.hint{color:var(--dim);font-size:11px;line-height:1.45;margin-top:8px}
+.hint.warn{color:var(--warn)}
+
+/* быстрое управление */
+.qc{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:auto;gap:6px}
+.qc>button{height:48px;font-size:18px;padding:0}
+.qc .keys{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+.qc .keys button{height:auto;font-size:12px;padding:6px 8px;text-align:left;display:flex;gap:8px;align-items:center}
+.qc .keys kbd{font:600 11px var(--mono);border:1px solid var(--ln2);border-radius:3px;padding:1px 6px;color:var(--acc);min-width:22px;text-align:center}
+.qc .mid{background:#2a1512;border-color:#6b2f2a;color:#ffb3a8}
+
+/* 3D */
+.v3{padding:0;overflow:hidden;display:flex;flex-direction:column}
+.v3 .hd{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;flex-wrap:wrap}
+.v3 .hd h2{margin:0}
+.pill{display:inline-flex;gap:0;border:1px solid var(--ln2);border-radius:4px;overflow:hidden}
+.pill button{border:0;border-radius:0;background:transparent;color:var(--dim);font-size:12px;letter-spacing:.1em;padding:5px 11px}
+.pill button.on{background:var(--acc);color:#0b0f05;font-weight:700}
+.tools{display:flex;gap:4px;flex-wrap:wrap}
+.tools button{font-size:11px;padding:4px 8px;color:var(--dim);background:transparent}
+.tools button.on{color:var(--acc);border-color:rgba(180,242,58,.45)}
+.v3 .body{display:grid;grid-template-columns:minmax(0,1fr) 168px;min-height:470px;flex:1}
+.view{position:relative;min-height:470px;background:#0a0d0f;border-top:1px solid var(--ln);border-right:1px solid var(--ln)}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+#cv.drag{cursor:grabbing}
+#gl,#ov{position:absolute;inset:0;width:100%;height:100%;display:block;pointer-events:none}
+.hud{position:absolute;left:10px;top:10px;pointer-events:none;font:12px/1.5 var(--mono);color:#cfd8d2;
+  background:rgba(8,10,11,.62);border:1px solid var(--ln);border-radius:4px;padding:6px 9px;max-width:min(420px,70%)}
+.hud .big{font:600 14px var(--ui);letter-spacing:.08em}
+.hud .dimx{color:var(--dim)}
+.banner{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;max-width:86%;
+  padding:7px 12px;border-radius:5px;font-size:12px;display:none}
+.banner.warn{display:block;background:#3a3320;border:1px solid #7d6320;color:#ffd98a}
+.banner.bad{display:block;background:#3a1d1a;border:1px solid #7d2e25;color:#ffb3a8}
+.countdown{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:none}
+.countdown div{font:700 96px var(--ui);color:var(--warn);text-shadow:0 0 30px rgba(0,0,0,.8)}
+.orient{padding:12px;display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--ln)}
+.orient .g{display:flex;align-items:center;gap:10px}
+.orient canvas{width:54px;height:54px;flex:none}
+.orient b{display:block;font-size:11px;letter-spacing:.14em;color:var(--dim);font-weight:500}
+.orient span{font:600 19px var(--mono)}
+.orient .note{font-size:10.5px;color:var(--dim2);line-height:1.4}
+.legs{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:10px 12px;border-top:1px solid var(--ln)}
+.leg{border:1px solid var(--ln);border-radius:4px;padding:7px 9px;background:var(--pan2)}
+.leg .t{display:flex;align-items:center;gap:6px;font-weight:600;letter-spacing:.08em}
+.leg .t .sp{flex:1}
+.leg .t i{width:8px;height:8px;border-radius:50%;background:var(--dim2)}
+.leg .t i.on{background:var(--acc);box-shadow:0 0 8px var(--acc)}
+.leg .bar{margin-top:6px}
+.leg .n{font:11px var(--mono);color:var(--dim);margin-top:4px}
+
+/* телеметрия серво */
+table.tm{width:100%;border-collapse:collapse;font:12px var(--mono)}
+table.tm th{white-space:nowrap;font:600 10.5px var(--ui);letter-spacing:.08em;color:var(--dim);text-align:right;padding:0 6px 8px;border-bottom:1px solid var(--ln)}
+table.tm th:nth-child(2),table.tm th:nth-child(3),table.tm td:nth-child(2),table.tm td:nth-child(3){text-align:left}
+table.tm td{white-space:nowrap;padding:5px 5px;text-align:right;border-bottom:1px solid #161c1f}
+table.tm tr:last-child td{border-bottom:0}
+table.tm td.st{font:600 11px var(--ui);letter-spacing:.1em}
+table.tm .mini{width:70px}
+table.tm .mini .bar{height:5px}
+.st.ok{color:var(--acc)}.st.warn{color:var(--warn)}.st.bad{color:var(--bad)}
+
+canvas.pl{width:100%;display:block}
+.pills2{display:flex;gap:4px}
+.pills2 button{font-size:11px;padding:3px 9px;color:var(--dim);background:transparent;border-radius:3px}
+.pills2 button.on{background:var(--acc);color:#0b0f05;border-color:var(--acc);font-weight:700}
+.gaits{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.gaits button{font-size:12px;letter-spacing:.08em;padding:6px 12px}
+.gaits button.sel{background:var(--acc);color:#0b0f05;border-color:var(--acc);font-weight:700}
+.gaits button.air{border-color:#6b4a1f}
+.prm{display:grid;grid-template-columns:auto 1fr 64px auto;gap:6px 10px;align-items:center}
+.prm label{color:var(--dim);font-size:12px}
+.prm input[type=range]{width:100%;accent-color:var(--acc)}
+.prm input[type=number]{width:64px;padding:3px 5px}
+.prm button{padding:3px 8px;font-size:11px}
+#log{background:#070909;border:1px solid var(--ln);border-radius:4px;padding:8px;height:190px;overflow:auto;
+  white-space:pre-wrap;word-break:break-word;font:11px/1.45 var(--mono);color:#b8c4be}
+.legend{display:grid;grid-template-columns:1fr 1fr;gap:2px 10px;font:10.5px var(--mono);color:var(--dim);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:2px;vertical-align:middle;margin-right:5px}
+
+/* вкладки ПАРАМЕТРЫ / СУСТАВЫ */
+.wide{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media(max-width:1100px){.wide{grid-template-columns:1fr}}
+.pgrid{display:grid;grid-template-columns:auto 1fr auto;gap:6px 8px;align-items:center}
+.pgrid label{color:var(--dim)}
+.pgrid input{width:100%}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.row label{color:var(--dim);font-size:12px}
+.jgrid{display:grid;grid-template-columns:40px repeat(3,1fr);gap:6px 10px;font:12px var(--mono);align-items:center}
+.jgrid .h{color:var(--dim);font:600 10.5px var(--ui);letter-spacing:.12em;text-transform:uppercase}
+.jc{display:flex;flex-direction:column;gap:3px}
+.trk{position:relative;height:7px;background:#0a0d0e;border:1px solid var(--ln2);border-radius:2px}
+.trk i{position:absolute;top:-1px;bottom:-1px;width:3px;background:var(--acc);border-radius:1px}
+.g-ok{color:var(--acc)}.g-w{color:var(--warn)}.g-b{color:var(--bad);font-weight:700}
+.kv{display:grid;grid-template-columns:auto auto;gap:4px 16px;font-size:12px}
+.kv b{font-weight:400;color:var(--dim)}
+.kv span{text-align:right;font-family:var(--mono)}
+.addr{display:flex;align-items:center;gap:8px}
+.addr input{width:180px}
+
+/* управление */
+.steps{display:flex;align-items:center;gap:6px;margin-bottom:12px}
+.steps .st{display:flex;align-items:center;gap:6px;font:600 11px var(--ui);letter-spacing:.12em;color:var(--dim2)}
+.steps .st i{width:10px;height:10px;border-radius:50%;border:2px solid var(--dim2)}
+.steps .st.done{color:var(--acc)}.steps .st.done i{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px rgba(180,242,58,.6)}
+.steps .st.cur{color:var(--tx)}.steps .st.cur i{border-color:var(--tx);animation:pulse 1.4s infinite}
+.steps .ln{flex:1;height:1px;background:var(--ln2)}
+@keyframes pulse{50%{box-shadow:0 0 0 5px rgba(228,235,230,.12)}}
+button.primary{width:100%;padding:14px 10px;font:700 17px var(--ui);letter-spacing:.14em;background:var(--acc);color:#0b0f05;border-color:var(--acc);border-radius:6px}
+button.primary:hover{filter:brightness(1.08)}
+button.primary.stopc{background:#8a1f16;border-color:#c23a2c;color:#fff}
+button.primary.warn{background:#6b4f12;border-color:#ffc14d;color:#ffe3a6}
+button.primary:disabled{background:#1c2326;border-color:var(--ln2);color:var(--dim);cursor:default}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+.pad button{height:50px;font-size:19px;padding:0;user-select:none;-webkit-user-select:none;touch-action:none;position:relative}
+.pad button small{position:absolute;left:0;right:0;bottom:3px;font-size:9.5px;letter-spacing:.06em;color:var(--dim)}
+.pad button.dim{opacity:.45}
+.pad button.down{border-color:var(--acc);background:var(--accbg);color:var(--acc)}
+.pad button.hold{box-shadow:0 0 0 2px var(--acc),0 0 16px rgba(180,242,58,.35)}
+.pad .stopx{background:#2a1512;border-color:#6b2f2a;color:#ffb3a8}
+.cyc{display:flex;align-items:center;gap:6px;margin-top:10px}
+.cyc label{color:var(--dim);font-size:12px;margin-right:auto}
+.cyc button{width:34px;padding:4px 0;font:600 12px var(--mono)}
+.cyc button.on{background:var(--acc);color:#0b0f05;border-color:var(--acc)}
+.sec{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.sec button{font-size:12px;padding:7px 6px}
+.sec button kbd,.pi kbd,.keys kbd{font:600 10.5px var(--mono);border:1px solid var(--ln2);border-radius:3px;padding:0 5px;color:var(--acc);margin-left:6px}
+#prmLock{display:none;color:var(--warn);font-size:12px;margin:-4px 0 8px}
+.prm input.pend{border-color:var(--warn)} .prm input.okf{border-color:var(--acc);box-shadow:0 0 0 2px rgba(180,242,58,.25)}
+/* подсказки */
+#toasts{position:fixed;right:16px;top:74px;z-index:50;display:flex;flex-direction:column;gap:8px;width:min(380px,calc(100vw - 32px));pointer-events:none}
+.toast{pointer-events:auto;position:relative;background:#121719;border:1px solid var(--ln2);border-left:3px solid var(--dim);border-radius:6px;
+  padding:10px 30px 10px 12px;box-shadow:0 10px 30px rgba(0,0,0,.45);font-size:13px;animation:tin .18s ease-out}
+.toast.info{border-left-color:var(--acc)} .toast.warn{border-left-color:var(--warn)} .toast.bad{border-left-color:var(--bad)}
+.toast .tc{display:block;font:11px var(--mono);color:var(--dim);margin-top:3px}
+.toast .ta{display:flex;gap:6px;margin-top:8px}
+.toast .ta button{font-size:12px;padding:4px 10px;border-color:var(--acc2);color:var(--acc)}
+.toast .tx{position:absolute;right:6px;top:6px;border:0;background:none;color:var(--dim);padding:0 4px;font-size:16px}
+.toast.out{opacity:0;transform:translateX(12px);transition:.25s}
+@keyframes tin{from{opacity:0;transform:translateY(-6px)}}
+/* палитра команд и клавиши */
+.ovl{position:fixed;inset:0;z-index:60;background:rgba(4,6,7,.6);display:none;align-items:flex-start;justify-content:center;padding-top:12vh}
+.ovl.on{display:flex}
+.pal{width:min(560px,92vw);background:#101315;border:1px solid var(--ln2);border-radius:8px;box-shadow:0 20px 60px rgba(0,0,0,.6);overflow:hidden}
+.pal input{width:100%;border:0;border-bottom:1px solid var(--ln);border-radius:0;padding:14px 16px;font:16px var(--ui);background:transparent}
+.pi{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer}
+.pi span{flex:none}.pi small{flex:1;color:var(--dim);font:11.5px var(--mono);text-align:right}
+.pi.sel{background:var(--accbg)}.pi.sel span{color:var(--acc)}
+.pal .ph{padding:8px 16px;color:var(--dim2);font-size:11px;border-top:1px solid var(--ln)}
+.keysbox{width:min(640px,92vw);background:#101315;border:1px solid var(--ln2);border-radius:8px;padding:18px 20px}
+.keysbox h2{margin:0 0 12px;font-size:13px;letter-spacing:.16em;color:#cfd8d2}
+.keysbox .kg{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:8px 12px;align-items:center;font-size:13px}
+.keysbox .kg kbd{margin:0;justify-self:start}
+.foot{display:flex;align-items:center;gap:14px;padding:10px 18px 14px;color:var(--dim);font-size:12px;letter-spacing:.1em;border-top:1px solid var(--ln);margin-top:4px}
+.foot b{color:var(--tx);font-weight:600}
+.foot .acc{color:var(--acc)}
+
+/* режим показа: только собака на весь экран, СТОП остаётся */
+body.show #page1 .col,body.show #page1 .main>:not(#showHost),body.show .foot,body.show .tabs{display:none !important}
+body.show #showHost{position:fixed;inset:64px 0 0 0;z-index:5;background:var(--bg)}
+body.show #showHost .v3{height:100%;border-radius:0}
+body.show #showHost .body{height:calc(100% - 44px)}
+body.show #showHost .legs{display:none}
+/* ---- 2026-09-28: быстрые действия, карточки походок, IMU, посетитель ---- */
+.qa{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.qa button{height:46px;font:600 13px var(--ui);letter-spacing:.08em;display:flex;align-items:center;justify-content:center;gap:6px}
+.qa button kbd{font:600 10px var(--mono);border:1px solid var(--ln2);border-radius:3px;padding:0 5px;color:var(--dim)}
+.qa .qstop{grid-column:1/-1;height:54px;font-size:17px;background:#2a1512;border-color:#8a3a33;color:#ffb3a8}
+.qa .qstop:hover{border-color:#ff5a4d}
+.qa .qup{border-color:rgba(180,242,58,.5);color:var(--acc)}
+.qa .qoff{color:#ffc9a0;border-color:#5a3d25}
+.qa button:disabled{opacity:.4}
+.gcards{display:grid;grid-template-columns:1fr;gap:5px;margin-bottom:10px}
+.gcard{text-align:left;white-space:normal;padding:6px 8px;display:grid;grid-template-columns:minmax(0,1fr) 42%;grid-template-rows:auto auto auto;
+  column-gap:10px;row-gap:1px;min-width:0;background:var(--pan2);align-items:center}
+.gcard b{font:700 13px var(--ui);letter-spacing:.12em;color:var(--tx)}
+.gcard .gd{font-size:11px;color:var(--dim);line-height:1.3}
+.gcard canvas{grid-column:2;grid-row:1/4;width:100%;height:40px;display:block}
+.gcard .gm{font:10.5px var(--mono);color:var(--dim2)}
+.gcard.sel{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc);background:var(--accbg)}
+.gcard.sel b{color:var(--acc)}
+.gcard.air .gw{color:var(--warn);font:600 10px var(--ui);letter-spacing:.1em}
+.imutag{display:inline-block;font:600 10px var(--ui);letter-spacing:.1em;padding:1px 6px;border-radius:3px;border:1px solid var(--ln2);color:var(--dim);margin-left:6px;vertical-align:middle}
+.orient span.imutag{font:600 10px var(--ui);margin-left:4px}
+.imutag.on{border-color:rgba(94,234,212,.6);color:var(--sim)}
+.imutag.warn{border-color:#6b5320;color:var(--warn)}
+.tm td.us{font-family:var(--mono);color:#cfd8d2}
+.tm td.us.off{color:var(--dim2)}
+#log .ts{color:var(--dim2)}
+/* посетитель: 3D во весь экран, внизу крупные кнопки. Параметров и опасных команд нет. */
+#vis{display:none}
+body.visitor #page1 .col,body.visitor #page1 .main>:not(#showHost),body.visitor .foot,body.visitor .tabs,
+body.visitor .top .seg,body.visitor .top .flags,body.visitor .top .rel,body.visitor .top .stop,body.visitor #modeTag,body.visitor .top .vsep,body.visitor #showHost .hd,body.visitor #showHost .hud,
+body.visitor #showHost .orient,body.visitor #showHost .legs,body.visitor #toasts{display:none !important}
+body.visitor #showHost{position:fixed;inset:64px 0 210px 0;z-index:5;background:var(--bg)}
+body.visitor #showHost .v3{height:100%;border-radius:0}
+body.visitor #showHost .body{height:100%;grid-template-columns:1fr !important}
+body.visitor #vis{display:flex;position:fixed;left:0;right:0;bottom:0;height:210px;z-index:20;background:linear-gradient(180deg,#0d1112,#080a0b);
+  border-top:1px solid var(--ln2);padding:14px 18px 12px;gap:14px;align-items:stretch}
+#vis .vb{flex:1;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:6px;border-radius:14px;padding:14px 20px;
+  font:700 clamp(15px,1.12vw,24px) var(--ui);letter-spacing:.02em;text-align:left;white-space:normal;background:#13191a;border:2px solid #2d3a33;color:var(--tx);position:relative;overflow:hidden}
+#vis .vb small{font:400 14px var(--ui);letter-spacing:.02em;color:var(--dim)}
+#vis .vb.go{border-color:var(--acc);color:var(--acc);background:rgba(180,242,58,.07)}
+#vis .vb:disabled{opacity:.35;border-color:#2d3a33;color:var(--dim)}
+#vis .vb i{position:absolute;left:0;bottom:0;height:5px;background:var(--acc);opacity:.7}
+#vis .vside{width:250px;display:flex;flex-direction:column;gap:8px}
+#vis .vmsg{flex:1;border-radius:12px;background:#101516;border:1px solid var(--ln);padding:10px 14px;font:16px/1.35 var(--ui);color:#cfd8d2}
+#vis .vmsg b{display:block;font:700 13px var(--ui);letter-spacing:.14em;color:var(--acc);margin-bottom:4px}
+#vis .vstop{height:64px;border-radius:12px;font:700 22px var(--ui);letter-spacing:.14em;background:#2a1512;border:2px solid #8a3a33;color:#ffb3a8}
+#vis .vexit{position:fixed;left:10px;top:72px;z-index:21;font-size:11px;color:var(--dim);background:rgba(8,10,11,.7);padding:5px 10px;user-select:none;-webkit-user-select:none;touch-action:none}
+#vis .vexit i{position:absolute;left:0;bottom:0;height:2px;background:var(--warn)}
+.visop{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:11px;color:var(--dim)}
+.visop label{display:flex;align-items:center;gap:4px}
+/* ---- 2026-09-29: трюки ---- */
+.tricks{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.tricks button{white-space:normal;text-align:left;padding:8px 10px;display:flex;flex-direction:column;gap:3px;min-height:64px;position:relative}
+.tricks button b{font:700 13px var(--ui);letter-spacing:.1em;color:var(--tx)}
+.tricks button small{font-size:10.5px;color:var(--dim);line-height:1.3}
+.tricks button .lk{position:absolute;right:7px;top:6px;font:600 9.5px var(--ui);letter-spacing:.08em;color:var(--warn)}
+.tricks button.run{border-color:var(--acc);background:var(--accbg)} .tricks button.run b{color:var(--acc)}
+.tricks button.lock{opacity:.55}
+.tricks button:disabled{opacity:.35}
+.hipbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--dim)}
+.hipbar b{color:var(--warn);font-weight:600} .hipbar b.ok{color:var(--acc)}
+.hipbar button{font-size:11.5px;padding:4px 10px}
+.trkbar{height:4px;background:var(--ln);border-radius:2px;margin-top:10px;overflow:hidden}
+.trkbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .15s}
+/* ---- 2026-09-30: профили ходьбы ---- */
+.profs{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.profs button{white-space:normal;text-align:left;padding:8px 10px;display:flex;flex-direction:column;gap:3px;min-height:74px;position:relative}
+.profs button b{font:700 13px var(--ui);letter-spacing:.08em;color:var(--tx)}
+.profs button small{font-size:10.5px;color:var(--dim);line-height:1.3}
+.profs button .pm{font:10px var(--mono);color:var(--dim2)}
+.profs button .tg{align-self:flex-start;font:600 9px var(--ui);letter-spacing:.08em;padding:1px 5px;border-radius:3px;border:1px solid var(--ln2);color:var(--dim)}
+.profs button .tg.air{color:var(--bad);border-color:#6b2f2a}
+.profs button .tg.fast{color:var(--warn);border-color:#6b5320}
+.profs button .tg.cart{color:var(--sim);border-color:rgba(94,234,212,.4)}
+.profs button.cur{border-color:var(--acc);background:var(--accbg)} .profs button.cur b{color:var(--acc)}
+.profs button:disabled{opacity:.35}
+.pgroup{font:600 10.5px var(--ui);letter-spacing:.14em;color:var(--dim);margin:10px 0 6px}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="logo">
+    <svg viewBox="0 0 40 40" aria-hidden="true"><g fill="#b4f23a">
+      <ellipse cx="20" cy="27" rx="9" ry="7.5"/><ellipse cx="8.5" cy="17.5" rx="3.6" ry="4.6" transform="rotate(-18 8.5 17.5)"/>
+      <ellipse cx="15.5" cy="10" rx="3.6" ry="4.8" transform="rotate(-6 15.5 10)"/><ellipse cx="24.5" cy="10" rx="3.6" ry="4.8" transform="rotate(6 24.5 10)"/>
+      <ellipse cx="31.5" cy="17.5" rx="3.6" ry="4.6" transform="rotate(18 31.5 17.5)"/></g></svg>
+    <div><b>SPOTTY</b><small>ЧЕТВЕРОНОГИЙ РОБОТ «РЕБУТ»</small></div>
+  </div>
+  <div class="tabs">
+    <button id="tab1" class="on" onclick="tab(1)">01 ПУЛЬТ</button>
+    <button id="tab2" onclick="tab(2)">02 ПАРАМЕТРЫ</button>
+    <button id="tab3" onclick="tab(3)">03 СУСТАВЫ</button>
+  </div>
+  <span class="sp"></span>
+  <span class="stat" id="hdStat"><i class="pip"></i><span id="hdStatT">—</span></span>
+  <span class="vsep"></span>
+  <span class="seg">
+    <button id="bLive" class="live" onclick="setMode('live')">ЖИВОЙ</button>
+    <button id="bSim" class="sim" onclick="setMode('sim')">СИМУЛЯЦИЯ</button>
+  </span>
+  <span id="modeTag" class="modeTag">—</span>
+  <span class="flags"><span id="fNet"></span><span id="fEng"></span><span id="fPose"></span><span id="fExtra"></span></span>
+  <button class="stop" onclick="send('x')" title="Пробел или Esc">СТОП</button>
+  <button class="rel" onclick="rel()">снять ШИМ</button>
+</div>
+
+<!-- ================= 01 ПУЛЬТ ================= -->
+<div class="page on" id="page1">
+<div class="dash">
+  <div class="col">
+    <div class="pn">
+      <h2>Состояние робота</h2>
+      <div class="rows" id="stRows"></div>
+    </div>
+    <div class="pn">
+      <h2>Режим</h2>
+      <div class="tile">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="#0b0f05"><path d="M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20zm0 3.2a1.6 1.6 0 1 1 0 3.2a1.6 1.6 0 0 1 0-3.2zM9 10h6l-1 9h-1.6l-.4-5h-.1l-.4 5H9.9z"/></svg></div>
+        <div><b id="mdName">—</b><span id="mdSub">—</span></div>
+      </div>
+    </div>
+    <div class="pn">
+      <h2>Походка</h2>
+      <div class="tile">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="#0b0f05"><circle cx="14" cy="4" r="2.2"/><path d="M9 8.5l4-1.5 3 2.5 3 1-.6 1.8-3.6-1.1-1.3-1-1.2 4 2.7 2.4V22h-2v-4.4l-3-2.6-1 3.2L5 20l-.6-1.9 3.4-1.1 2-6.4-1.3.5V14H6.6V9.6z"/></svg></div>
+        <div><b id="gtName">—</b><span id="gtSub">—</span></div>
+      </div>
+      <div class="lbl">Скорость корпуса</div>
+      <div style="display:flex;align-items:baseline;gap:8px"><span class="big" id="spdV">—</span><span class="hint" style="margin:0" id="spdU">мм/с заказано</span></div>
+      <div class="bar" style="margin-top:6px"><i id="spdB" style="width:0"></i></div>
+      <div class="hint" id="gtTiming">—</div>
+    </div>
+    <div class="pn">
+      <h2>Скорость сустава</h2>
+      <div style="display:flex;align-items:baseline;gap:8px"><span class="big" id="rtV">—</span><span class="hint" style="margin:0" id="rtU">°/с</span></div>
+      <div class="bar" style="margin-top:6px"><i id="rtB" style="width:0"></i></div>
+      <div class="hint">Пик, которого требует походка, против ограничителя «m». Выше — траектория будет срезана.</div>
+    </div>
+    <div class="pn">
+      <h2>Надёжность</h2>
+      <div class="rows" id="relRows"></div>
+    </div>
+    <div class="pn">
+      <h2>Быстрые действия</h2>
+      <div class="qa">
+        <button class="qstop" onclick="send('x')" title="СТОП: заморозить ход (Пробел, Esc)">■ СТОП <kbd>ПРОБЕЛ</kbd></button>
+        <button class="qup" id="qaUp" onclick="send('n')" title="взвод и поза / вернуться в позу">ВСТАТЬ <kbd>N</kbd></button>
+        <button id="qaDown" onclick="send('l')" title="плавно лечь">ЛЕЧЬ <kbd>L</kbd></button>
+        <button class="qoff" id="qaRel" onclick="rel()" title="снять сигнал со всех серво — стоящий робот сложится" style="grid-column:1/-1">СНЯТЬ ШИМ</button>
+      </div>
+      <div class="hint">Сброса (RESET) здесь нет намеренно: перезапуск ESP32 — только кнопкой на плате.</div>
+    </div>
+    <div class="pn">
+      <h2>Управление <span class="sp"></span><small><a href="#" onclick="openPal();return false" style="color:var(--dim)">команды /</a></small></h2>
+      <div class="steps" id="steps"></div>
+      <button class="primary" id="primBtn" onclick="primary()">—</button>
+      <div class="hint" id="primHint" style="min-height:30px"></div>
+      <div class="pad">
+        <button data-mv="tl" title="разворот влево (A, Q или ←)">↶<small>A</small></button>
+        <button data-mv="fw" title="вперёд (W или ↑)">▲<small>W</small></button>
+        <button data-mv="tr" title="разворот вправо (D, E или →)">↷<small>D</small></button>
+        <button data-mv="cl" title="краб влево (Shift+A, Shift+←)">◀<small>краб</small></button>
+        <button class="stopx" onclick="send('x')" title="СТОП (Пробел)">■<small>ПРОБЕЛ</small></button>
+        <button data-mv="cr" title="краб вправо (Shift+→)">▶<small>краб</small></button>
+        <span></span>
+        <button data-mv="bk" title="назад (S или ↓)">▼<small>S</small></button>
+        <span></span>
+      </div>
+      <div class="hint">WASD или стрелки. Нажать — пройти N циклов. <b style="color:var(--tx)">Держать</b> — идёт, пока держишь; отпустил — стоп и плавно в позу.</div>
+      <div class="cyc"><label>циклов за нажатие</label>
+        <button onclick="setCyc(1)">1</button><button class="on" onclick="setCyc(2)">2</button><button onclick="setCyc(4)">4</button><button onclick="setCyc(8)">8</button></div>
+      <div class="sec">
+        <button onclick="setVisitor(true)" title="крупные кнопки для гостей выставки">Посетитель</button>
+        <button onclick="setShow(!SHOW)" title="3D во весь экран (F)">Показ<kbd>F</kbd></button>
+        <button onclick="send('p')" title="предполётная проверка — ничего не двигает">Проверка<kbd>P</kbd></button>
+        <button onclick="toggleHelp()" title="горячие клавиши">Клавиши<kbd>?</kbd></button>
+      </div>
+      <div class="visop"><label title="команда 'u' на железе ещё не проверена — включать после проверки на вывешенном роботе"><input type="checkbox" id="visTurn" onchange="VIS.turnOn=this.checked"> разворот для посетителей</label></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="s7" id="showHost">
+      <div class="pn v3">
+        <div class="hd">
+          <h2>3D вид</h2>
+          <span class="pill"><button id="vReal" class="on" onclick="setView('real')" title="детали со светом и тенью (V)">ДЕТАЛИ</button><button id="vBlue" onclick="setView('blue')" title="чертёж: рычаги, углы, опора (V)">ЧЕРТЁЖ</button></span>
+          <span class="sp" style="flex:1"></span>
+          <span class="tools">
+            <button id="tPaint" class="on" onclick="togglePaint()" title="окраска деталей">неон</button>
+            <button id="tFollow" class="on" onclick="toggle('follow')">камера</button>
+            <button id="tLabels" class="on" onclick="toggle('labels')">метки</button>
+            <button id="tTrail" class="on" onclick="toggle('trail')">след</button>
+            <button id="tImu" class="on" onclick="toggleImu()" title="поза корпуса: IMU робота или кинематика стоп">IMU</button>
+            <button id="tHip" class="on" onclick="toggleHip()" title="соглашение знака хипа">хип + наружу</button>
+            <button onclick="resetWorld()">в центр</button>
+            <button onclick="resetCam()">вид</button>
+            <button id="tShow" onclick="setShow(!SHOW)" title="режим показа (F)">показ</button>
+          </span>
+        </div>
+        <div class="body">
+          <div class="view" id="view">
+            <canvas id="cv"></canvas><canvas id="gl"></canvas><canvas id="ov"></canvas>
+            <div class="hud" id="hud"></div>
+            <div class="banner" id="banner"></div>
+            <div class="countdown" id="cd"><div id="cdn">5</div></div>
+          </div>
+          <div class="orient">
+            <h2 style="margin:0 0 2px;font-size:12px;letter-spacing:.16em;color:#cfd8d2">ОРИЕНТАЦИЯ</h2>
+            <div style="margin-top:-6px">источник <span class="imutag" id="oSrc">КИН</span></div>
+            <div class="g"><canvas id="gRoll" width="108" height="108"></canvas><div><b>КРЕН</b><span id="oRoll">—</span></div></div>
+            <div class="g"><canvas id="gPitch" width="108" height="108"></canvas><div><b>ТАНГАЖ</b><span id="oPitch">—</span></div></div>
+            <div class="g"><canvas id="gYaw" width="108" height="108"></canvas><div><b>КУРС</b><span id="oYaw">—</span></div></div>
+            <div><b style="display:block;font-size:11px;letter-spacing:.14em;color:var(--dim)">ВЫСОТА КОРПУСА</b><span class="big" id="oH">—</span></div>
+            <div class="note" id="oNote">По кинематике: крен и тангаж — по плоскости стоп, курс — по одометрии.</div>
+          </div>
+        </div>
+        <div class="legs" id="legCards"></div>
+      </div>
+    </div>
+
+    <div class="pn s5">
+      <h2>Телеметрия серво <span class="sp"></span><small id="tmSrc">—</small></h2>
+      <table class="tm"><thead><tr><th>КАН</th><th>НОГА</th><th>СУСТАВ</th><th>УГОЛ °</th><th>ШИМ мкс</th><th>ОКНО °</th><th>ЗАПАС °</th><th></th><th>СТАТУС</th></tr></thead>
+        <tbody id="tmBody"></tbody></table>
+      <div class="hint" id="tmHint">Запас — до жёсткого предела прошивки. Обрезка по пределу = аварийный стоп.</div>
+    </div>
+
+    <div class="pn" style="grid-column:1/-1">
+      <h2>Трюки <span class="sp"></span><small id="trkSrc">—</small></h2>
+      <div class="hipbar" id="hipBar"></div>
+      <div class="tricks" id="trkBox"></div>
+      <div class="trkbar"><i id="trkProg"></i></div>
+      <div class="hint">Идеи — Petoi Bittle, Unitree Go2, SpotMicro; кадры посчитаны под эту раму и проверены в PyBullet
+        (0 падений из 80 прогонов). Трюк начинается из позы (N). СТОП (Пробел) замораживает, N — в позу.
+        Трюки с хипами (лапа, танец, вилять, оглядеться) закрыты, пока не проверен знак хипа.</div>
+    </div>
+
+    <div class="pn" style="grid-column:1/-1">
+      <h2>Режимы ходьбы <span class="sp"></span><small id="profSrc">—</small></h2>
+      <div id="profBox"></div>
+      <div class="hint">Профиль — набор параметров (походка, высота, шаг, подъём колена, темп), команда <b>M &lt;имя&gt;</b>.
+        Движения он не начинает: если изменилась высота, робот стоит в прежней позе — <b>N</b> переведёт в новую, потом <b>W</b> / стрелки.
+        Все профили прогнаны через прошивку: пределы суставов, IK, скорость серво. <b style="color:var(--warn)">БЫСТРЫЙ</b> — скорость серво
+        ещё не измерена (<b>z</b>), сначала на подвесе. <b style="color:var(--bad)">НА ВЕСУ</b> — на полу уронит робота.</div>
+    </div>
+
+    <div class="pn s2 r2">
+      <h2>Карта контактов</h2>
+      <canvas class="pl" id="cContact" height="150"></canvas>
+    </div>
+    <div class="pn s3 r2">
+      <h2>Фаза походки</h2>
+      <canvas class="pl" id="cPhase" height="150"></canvas>
+    </div>
+    <div class="pn s2 r2">
+      <h2>Траектории стоп</h2>
+      <canvas class="pl" id="cTraj" height="150"></canvas>
+    </div>
+    <div class="pn s3 r2">
+      <h2>Кинематика</h2>
+      <div class="rows" id="kinRows"></div>
+      <canvas class="pl" id="cSpeed" height="46" style="margin-top:8px"></canvas>
+    </div>
+    <div class="pn s2 r2">
+      <h2>Опора</h2>
+      <div class="rows" id="supRows"></div>
+      <canvas class="pl" id="cMargin" height="46" style="margin-top:8px"></canvas>
+    </div>
+
+    <div class="pn s4">
+      <h2>Управление походкой</h2>
+      <div class="gcards" id="gaits"></div>
+      <div id="prmLock">На ходу параметры не меняются — сначала СТОП.</div>
+      <div class="prm" id="prmQuick"></div>
+      <div class="hint">Полоски на карточке — опора ноги за цикл (из GAITS[] прошивки), белая черта — текущая фаза. Ползунок применяется, когда отпускаешь. Рамка: жёлтая — отправлено, зелёная — принято. Остальное — вкладка <a href="#" onclick="tab(2);return false" style="color:var(--acc)">02 ПАРАМЕТРЫ</a>.</div>
+    </div>
+    <div class="pn s3">
+      <h2>Прошивка <small id="fwSrc">—</small></h2>
+      <div class="rows" id="fwRows"></div>
+    </div>
+    <div class="pn s3">
+      <h2>Графики <span class="sp"></span>
+        <span class="pills2"><button id="grJ" class="on" onclick="setGraph('j')" title="углы 12 суставов">УГЛЫ</button><button id="grM" onclick="setGraph('m')">ЗАПАС</button><button id="grO" onclick="setGraph('o')" title="крен и тангаж: IMU против опоры">НАКЛОН</button></span></h2>
+      <canvas class="pl" id="cGraph" height="170"></canvas>
+      <div class="legend" id="grLegend"></div>
+    </div>
+    <div class="pn s2">
+      <h2>Лог</h2>
+      <div id="log"></div>
+      <div class="row" style="margin:6px 0 0"><button onclick="el('log').textContent=''" style="font-size:11px;padding:3px 8px">очистить</button>
+        <label><input type="checkbox" id="auto" checked> прокрутка</label></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ================= 02 ПАРАМЕТРЫ ================= -->
+<div class="page" id="page2">
+  <div class="wide">
+    <div class="pn">
+      <h2>Параметры декартова движка <small>мм</small></h2>
+      <div class="pgrid" id="pgrid"></div>
+      <div class="row" style="margin-top:10px">
+        <label>траектория</label><button onclick="send('f 0')">дуга</button><button onclick="send('f 1')">плоская</button>
+        <label>перенос</label><button onclick="send('S 0')">линейн.</button><button onclick="send('S 1')">сглаж.</button>
+      </div>
+      <div class="row"><label>движок</label><button onclick="send('G 1')">G 1 декартов</button><button onclick="send('G 0')">G 0 угловой</button>
+        <button onclick="send('s')">показать s</button><button onclick="send('h')">справка h</button></div>
+      <div class="hint" id="pnote"></div>
+    </div>
+    <div class="col">
+      <div class="pn">
+        <h2>Своя команда</h2>
+        <div class="row"><input type="text" id="raw" placeholder="например: g walk" style="flex:1;width:auto"
+          onkeydown="if(event.key==='Enter')sendRaw()"><button onclick="sendRaw()">отправить</button></div>
+        <div class="hint">Строка уходит в тот же разбор, что и ввод в мониторе порта.</div>
+      </div>
+      <div class="pn">
+        <h2>Робот</h2>
+        <div class="addr" id="addrBox"><label>адрес</label><input type="text" id="robotAddr" title="IP или spotty.local; Enter — применить"
+          onkeydown="if(event.key==='Enter')setRobot()"><button onclick="setRobot()">применить</button></div>
+        <div class="hint">Пульт опрашивает робота только пока страница открыта в режиме ЖИВОЙ — watchdog прошивки (6 с → x) работает как раньше. Кнопка СТОП — best effort по сети: разрыв питания держать под рукой.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= 03 СУСТАВЫ ================= -->
+<div class="page" id="page3">
+  <div class="wide">
+    <div class="pn"><h2>Суставы — угол и запас до предела</h2><div class="jgrid" id="joints"></div></div>
+    <div class="pn"><h2>Состояние подробно</h2><div class="kv" id="kv"></div></div>
+  </div>
+</div>
+
+<div id="vis">
+  <button class="vb go" id="vbWalk" onclick="visRun('walk')">ПРОЙТИ<small>несколько шагов вперёд</small><i id="vpWalk"></i></button>
+  <button class="vb" id="vbTurn" onclick="visRun('turn')">РАЗВЕРНУТЬСЯ<small>поворот на месте</small><i id="vpTurn"></i></button>
+  <button class="vb" id="vbStand" onclick="visRun('stand')">ВСТАТЬ<small>подняться из позы лёжа</small><i id="vpStand"></i></button>
+  <button class="vb" id="vbLie" onclick="visRun('lie')">ЛЕЧЬ<small>плавно опуститься</small><i id="vpLie"></i></button>
+  <button class="vb" id="vbBow" onclick="visRun('bow')">ПОКЛОН<small>поздороваться</small><i id="vpBow"></i></button>
+  <button class="vb" id="vbPaw" onclick="visRun('paw')">ДАТЬ ЛАПУ<small>сесть и дать лапу</small><i id="vpPaw"></i></button>
+  <div class="vside">
+    <div class="vmsg" id="visMsg"><b>SPOTTY «РЕБУТ»</b>Нажмите кнопку — робот выполнит одно движение.</div>
+    <button class="vstop" onclick="visStop()">■ СТОП</button>
+  </div>
+  <button class="vexit" id="visExit" title="оператору: держать 2 секунды">держать 2 с — выход<i id="visExitP"></i></button>
+</div>
+<div id="toasts"></div>
+<div class="ovl" id="pal" onclick="if(event.target===this)closePal()"><div class="pal">
+  <input id="palIn" placeholder="Что сделать? «встать», «trot», «H 180»…" oninput="palFilter()" autocomplete="off">
+  <div id="palList"></div>
+  <div class="ph">↑↓ выбрать · Enter выполнить · Esc закрыть · сырая команда: буква прошивки и число</div>
+</div></div>
+<div class="ovl" id="keys" onclick="this.classList.remove('on')"><div class="keysbox">
+  <h2>ГОРЯЧИЕ КЛАВИШИ</h2>
+  <div class="kg">
+    <kbd>Пробел</kbd><span>СТОП (и Esc)</span><kbd>N</kbd><span>встать / в позу</span>
+    <kbd>W S · ↑ ↓</kbd><span>вперёд / назад</span><kbd>L</kbd><span>лечь</span>
+    <kbd>A D · ← → · Q E</kbd><span>разворот</span><kbd>P</kbd><span>предполётная проверка</span>
+    <kbd>Shift + A D / ← →</kbd><span>краб</span><kbd>1…9</kbd><span>циклов за нажатие</span>
+    <kbd>держать</kbd><span>идти, пока держишь</span><kbd>/ · Ctrl+K</kbd><span>палитра команд</span>
+    <kbd>V</kbd><span>детали / чертёж</span><kbd>F</kbd><span>режим показа</span>
+    <kbd>I</kbd><span>поза по IMU / по кинематике</span><kbd>Ctrl+Shift+U</kbd><span>режим посетителя</span>
+  </div>
+  <div class="hint" style="margin-top:14px">Раскладка не важна — русские буквы на тех же клавишах тоже работают. Щелчок — закрыть.</div>
+</div></div>
+<div class="foot">
+  <b>SPOTTY</b> «Ребут» <span>|</span> пульт 3D <span>|</span> прошивка gait_test
+  <span class="sp"></span>
+  <span>СОБРАНО, ЧТОБЫ УЧИТЬСЯ</span> / <span>СОБРАНО, ЧТОБЫ ИССЛЕДОВАТЬ</span> / <span class="acc">SPOTTY</span>
+</div>
+
+<script>
+"use strict";
+/* ==========================================================================
+ * Spotty — пульт 3D.
+ *
+ * ГЛАВНОЕ. Здесь нет копии походки. Углы суставов берутся либо с робота
+ * (/api/state, режим ЖИВОЙ), либо из настоящей прошивки через стенд trace
+ * (/sim/trace, режим СИМУЛЯЦИЯ). Страница делает только три вещи сама:
+ *   1. прямую кинематику — рисует ногу по 12 углам (как URDF в model.py);
+ *   2. «кинематическое заземление» — ставит корпус так, чтобы нижние стопы
+ *      стояли на полу, и сдвигает его по тому, как едут опорные стопы.
+ *      Это НЕ физика: проскальзывания, падений и инерции здесь нет.
+ *      Физика — PyBullet (view.py);
+ *   3. рампу 100 °/с между позами в симуляции (так же, как slewToTargets).
+ * ========================================================================== */
+
+function el(i){return document.getElementById(i)}
+var D2R=Math.PI/180;
+
+/* ---------------- геометрия (из прошивки; здесь только запасные) ---------- */
+var G={femur:108.31,tibia:116.51,hip:10.75,foot_r:19.41,base_lat:78,base_long:186,
+       base_long_measured:true};
+var LIM=null;                 // [12][lo,hi] из прошивки
+var BODY={extraLen:60,extraWid:34,h:70};   // ПРИНЯТО, как в model.py
+var OPT={follow:true,labels:true,trail:true,hipOut:true,imu:true};
+var LEGN=['FR','FL','BR','BL'], JN=['хип','бедро','колено'];
+var LEG_FWD=[1,1,-1,-1], LEG_LEFT=[-1,1,-1,1];
+var REST=[0,-40,140];         // REST_*_DEG из gait_test.ino (КАНДИДАТЫ), клампятся в окно
+
+var GAITS=[["trot","диагональ"],["pace","борт"],["bound","ТОЛЬКО НА ВЕСУ",1],
+           ["walk","3 ноги"],["gallop","ТОЛЬКО НА ВЕСУ",1]];
+
+/* ---------------- прямая кинематика --------------------------------------- */
+function rx(v,a){var c=Math.cos(a),s=Math.sin(a);return [v[0],v[1]*c-v[2]*s,v[1]*s+v[2]*c]}
+function ry(v,a){var c=Math.cos(a),s=Math.sin(a);return [v[0]*c+v[2]*s,v[1],-v[0]*s+v[2]*c]}
+function add(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]]}
+
+/* ---------------- модель собаки = URDF ------------------------------------
+ * Собака рисуется из URDF: сервер отдаёт /sim/urdf — тот же генератор
+ * spotty_sim/model.py, что строит spotty_gen.urdf для PyBullet, из геометрии
+ * и пределов прошивки (или файл из --urdf). Звенья, их размеры, цвета и оси
+ * суставов берутся ИЗ URDF, а не пишутся здесь. Если URDF не пришёл —
+ * встроенная копия той же схемы (builtinU), и HUD об этом говорит.
+ * Поддержаны box / cylinder / sphere; mesh пропускается.            */
+var U=null, U_SRC='встроенная';
+function mm3(A,B){var C=[[0,0,0],[0,0,0],[0,0,0]];
+  for(var i=0;i<3;i++)for(var j=0;j<3;j++)C[i][j]=A[i][0]*B[0][j]+A[i][1]*B[1][j]+A[i][2]*B[2][j];return C;}
+var I3=[[1,0,0],[0,1,0],[0,0,1]];
+function tmul(A,B){return {R:mm3(A.R,B.R),p:add(mv(A.R,B.p),A.p)}}
+function tpt(T,v){return add(mv(T.R,v),T.p)}
+function rpyMat(r){        // URDF: R = Rz(yaw)·Ry(pitch)·Rx(roll)
+  var cr=Math.cos(r[0]),sr=Math.sin(r[0]),cp=Math.cos(r[1]),sp=Math.sin(r[1]),cy=Math.cos(r[2]),sy=Math.sin(r[2]);
+  return [[cy*cp,cy*sp*sr-sy*cr,cy*sp*cr+sy*sr],[sy*cp,sy*sp*sr+cy*cr,sy*sp*cr-cy*sr],[-sp,cp*sr,cp*cr]];
+}
+function axMat(a,t){       // поворот на t вокруг единичной оси a
+  var c=Math.cos(t),s=Math.sin(t),k=1-c,x=a[0],y=a[1],z=a[2];
+  return [[k*x*x+c,k*x*y-s*z,k*x*z+s*y],[k*x*y+s*z,k*y*y+c,k*y*z-s*x],[k*x*z-s*y,k*y*z+s*x,k*z*z+c]];
+}
+function nums(s,d){return s?s.trim().split(/\s+/).map(Number):d.slice()}
+function kid(el,tag){for(var i=0;i<el.children.length;i++)if(el.children[i].tagName===tag)return el.children[i];return null}
+function originOf(el){var o=el&&kid(el,'origin');
+  return {R:rpyMat(nums(o&&o.getAttribute('rpy'),[0,0,0])),p:nums(o&&o.getAttribute('xyz'),[0,0,0]).map(function(x){return x*1000})}}
+
+function parseURDF(txt){
+  var doc=new DOMParser().parseFromString(txt,'application/xml');
+  if(doc.getElementsByTagName('parsererror').length) throw new Error('URDF не разобрался как XML');
+  var robot=doc.documentElement, links={}, joints=[], skipped=0;
+  Array.prototype.forEach.call(robot.children,function(e){
+    if(e.tagName==='link'){
+      var vis=[];
+      Array.prototype.forEach.call(e.children,function(v){
+        if(v.tagName!=='visual') return;
+        var g=kid(v,'geometry'), sh=g&&g.firstElementChild; if(!sh) return;
+        var mat=kid(v,'material'), col=mat&&kid(mat,'color');
+        var it={type:sh.tagName,T:originOf(v),rgba:col?nums(col.getAttribute('rgba'),[.7,.7,.7,1]):[.7,.7,.7,1]};
+        if(sh.tagName==='box') it.size=nums(sh.getAttribute('size'),[0,0,0]).map(function(x){return x*1000});
+        else if(sh.tagName==='cylinder'){it.r=+sh.getAttribute('radius')*1000; it.len=+sh.getAttribute('length')*1000;}
+        else if(sh.tagName==='sphere') it.r=+sh.getAttribute('radius')*1000;
+        else {skipped++; return;}
+        vis.push(it);
+      });
+      links[e.getAttribute('name')]={vis:vis};
+    } else if(e.tagName==='joint'){
+      var ax=kid(e,'axis');
+      joints.push({name:e.getAttribute('name'),type:e.getAttribute('type'),
+        parent:kid(e,'parent').getAttribute('link'),child:kid(e,'child').getAttribute('link'),
+        T0:originOf(e),axis:norm(nums(ax&&ax.getAttribute('xyz'),[1,0,0]))});
+    }
+  });
+  return finishU(links,joints,skipped);
+}
+function finishU(links,joints,skipped){
+  var children={}; joints.forEach(function(j){children[j.child]=1});
+  var root=Object.keys(links).filter(function(n){return !children[n]})[0];
+  var order=[], known={}; known[root]=1;
+  for(var guard=0;guard<50&&order.length<joints.length;guard++)
+    joints.forEach(function(j){if(known[j.parent]&&!known[j.child]){order.push(j);known[j.child]=1;}});
+  // соответствие суставов прошивки суставам URDF: j_hip_FR, j_thigh_FR, j_knee_FR …
+  var map={}, miss=[];
+  LEGN.forEach(function(L,i){['hip','thigh','knee'].forEach(function(n,k){
+    var nm='j_'+n+'_'+L; if(joints.some(function(j){return j.name===nm})) map[nm]=i*3+k; else miss.push(nm);
+  });});
+  var box=(links[root].vis.filter(function(v){return v.type==='box'})[0]||{size:[246,112,70]}).size;
+  return {links:links,joints:order,root:root,map:map,miss:miss,box:box,skipped:skipped};
+}
+
+// Встроенная копия схемы model.py — только если URDF не пришёл.
+function builtinU(){
+  var links={base_link:{vis:[{type:'box',T:{R:I3,p:[0,0,0]},size:[G.base_long+BODY.extraLen,G.base_lat+BODY.extraWid,BODY.h],rgba:[.2,.45,.75,1]}]}}, joints=[];
+  var RX90=rpyMat([1.5708,0,0]);
+  LEGN.forEach(function(L,i){
+    var s=LEG_LEFT[i], fw=LEG_FWD[i];
+    joints.push({name:'j_hip_'+L,parent:'base_link',child:'hip_'+L,T0:{R:I3,p:[fw*G.base_long/2,s*G.base_lat/2,0]},axis:[1,0,0]});
+    links['hip_'+L]={vis:[{type:'cylinder',T:{R:RX90,p:[0,s*G.hip/2,0]},r:9,len:G.hip,rgba:[.85,.85,.88,1]}]};
+    joints.push({name:'j_thigh_'+L,parent:'hip_'+L,child:'thigh_'+L,T0:{R:I3,p:[0,s*G.hip,0]},axis:[0,1,0]});
+    links['thigh_'+L]={vis:[{type:'cylinder',T:{R:I3,p:[0,0,-G.femur/2]},r:9,len:G.femur,rgba:[.95,.6,.15,1]}]};
+    joints.push({name:'j_knee_'+L,parent:'thigh_'+L,child:'shank_'+L,T0:{R:I3,p:[0,0,-G.femur]},axis:[0,1,0]});
+    links['shank_'+L]={vis:[{type:'cylinder',T:{R:I3,p:[0,0,-G.tibia/2]},r:7.2,len:G.tibia,rgba:[.3,.3,.34,1]},
+                            {type:'sphere',T:{R:I3,p:[0,0,-G.tibia]},r:G.foot_r,rgba:[.12,.12,.12,1]}]};
+  });
+  return finishU(links,joints,0);
+}
+
+/* Углы прошивки -> углы суставов URDF (spotty_sim/model.py, to_urdf_angles):
+ *   q_thigh = -thigh, q_knee = -knee — бесспорно;
+ *   ХИП — ДВА СОГЛАШЕНИЯ, И ОНИ РАСХОДЯТСЯ (кнопка «хип +» над видом):
+ *   «наружу» (по умолчанию): q_hip = +s*hip. Это ИЗМЕРЕННОЕ соглашение:
+ *       окна хипов в прошивке [-10…-20, +49…+62], CALIBRATION.md — внутрь
+ *       ход мал, наружу велик; комментарий к TURN_SIGN в gait_test.ino.
+ *   «как URDF»: q_hip = -s*hip — так в model.py, и так считает legIK
+ *       (hip = atan2(z,y) - atan2(r,L_HIP), y наружу: стопа наружу -> хип
+ *       УМЕНЬШАЕТСЯ, то есть у legIK хип + = ВНУТРЬ).
+ *   Нулевая поза — ноги прямо вниз. База: x вперёд, y влево, z вверх, мм. */
+function qOf(idx,ang){
+  var leg=idx/3|0, k=idx%3, a=ang[idx]*D2R;
+  if(k===0) return (OPT.hipOut?LEG_LEFT[leg]:-LEG_LEFT[leg])*a;
+  return -a;
+}
+function fk(ang){
+  if(!U) U=builtinU();
+  var T={}, jp={};
+  T[U.root]={R:I3,p:[0,0,0]};
+  U.joints.forEach(function(j){
+    var Tj=tmul(T[j.parent],j.T0); jp[j.name]=Tj.p;
+    var idx=U.map[j.name], q=(idx===undefined||j.type==='fixed')?0:qOf(idx,ang);
+    T[j.child]={R:mm3(Tj.R,axMat(j.axis,q)),p:Tj.p};
+  });
+  var legs=LEGN.map(function(L){
+    var sk=U.links['shank_'+L], sp=sk&&sk.vis.filter(function(v){return v.type==='sphere'})[0];
+    var foot=sp?tpt(T['shank_'+L],sp.T.p):jp['j_knee_'+L];
+    return {hip:jp['j_hip_'+L],sh:jp['j_thigh_'+L],knee:jp['j_knee_'+L],foot:foot,footR:sp?sp.r:G.foot_r};
+  });
+  legs.T=T; legs.jp=jp;
+  return legs;
+}
+function clampRest(){
+  var a=[];
+  for(var i=0;i<12;i++){
+    var v=REST[i%3];
+    if(LIM){v=Math.max(LIM[i][0],Math.min(LIM[i][1],v));}
+    a.push(v);
+  }
+  return a;
+}
+
+/* ---------------- мир: заземление и одометрия ----------------------------- */
+var W={x:0,y:0,yaw:0,z:200,n:[0,0,1],nk:[0,0,1],trail:[],prevC:null,contact:[1,1,1,1]};
+/* IMU КАК ИСТОЧНИК ПОЗЫ (2026-09-28). Прошивка отдаёт в /api/state поле imu:
+ * крен/тангаж за вычетом 'imu zero', курс — интеграл гиро. Если он есть и
+ * включён (кнопка IMU, клавиша I), наклон корпуса берётся с IMU, а не из
+ * плоскости четырёх стоп, и курс — с гиро, а не из одометрии по опорным
+ * стопам. Положение над полом по-прежнему из одометрии: IMU его не знает.
+ * ОСИ НА РОБОТЕ НЕ ПРОВЕРЕНЫ. Соглашение прошивки: крен + правый борт вниз,
+ * тангаж + нос вверх, курс + нос влево — то же, что у пульта (tilt()). */
+var IMUY=null;
+function imuRaw(){ var s=liveSt; return (MODE==='live'&&liveOk&&s&&s.imu&&s.imu.ok)?s.imu:null; }
+function imuNow(){ return OPT.imu?imuRaw():null; }
+function toggleImu(){
+  OPT.imu=!OPT.imu; IMUY=null; el('tImu').className=OPT.imu?'on':'';
+  toast(OPT.imu?(imuRaw()?'Поза корпуса — по IMU робота (оси не проверены)':'IMU включён, но робот его не присылает — поза по кинематике'):'Поза корпуса — по кинематике стоп','info',null,2500);
+}
+function norm(v){var l=Math.hypot(v[0],v[1],v[2])||1;return [v[0]/l,v[1]/l,v[2]/l]}
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]}
+// Поворот, переводящий нормаль опорной плоскости n (в осях корпуса) в вертикаль.
+function tiltMat(n){
+  var z=[0,0,1], ax=cross(n,z), s=Math.hypot(ax[0],ax[1],ax[2]), c=dot(n,z);
+  if(s<1e-9) return [[1,0,0],[0,1,0],[0,0,1]];
+  ax=[ax[0]/s,ax[1]/s,ax[2]/s];
+  var t=1-c, x=ax[0], y=ax[1], w=ax[2];
+  return [[t*x*x+c, t*x*y-s*w, t*x*w+s*y],
+          [t*x*y+s*w, t*y*y+c, t*y*w-s*x],
+          [t*x*w-s*y, t*y*w+s*x, t*w*w+c]];
+}
+function mv(M,v){return [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],
+                         M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],
+                         M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]]}
+function planeFit(P){        // z = a x + b y + c, МНК
+  var sxx=0,sxy=0,syy=0,sx=0,sy=0,sxz=0,syz=0,sz=0,n=P.length;
+  P.forEach(function(p){sxx+=p[0]*p[0];sxy+=p[0]*p[1];syy+=p[1]*p[1];sx+=p[0];sy+=p[1];
+    sxz+=p[0]*p[2];syz+=p[1]*p[2];sz+=p[2];});
+  var A=[[sxx,sxy,sx],[sxy,syy,sy],[sx,sy,n]], b=[sxz,syz,sz];
+  var d=det3(A); if(Math.abs(d)<1e-6) return null;
+  function rep(k){var M=A.map(function(r){return r.slice()});for(var i=0;i<3;i++)M[i][k]=b[i];return det3(M)}
+  return [rep(0)/d, rep(1)/d, rep(2)/d];
+}
+function det3(m){return m[0][0]*(m[1][1]*m[2][2]-m[1][2]*m[2][1])-m[0][1]*(m[1][0]*m[2][2]-m[1][2]*m[2][0])+m[0][2]*(m[1][0]*m[2][1]-m[1][1]*m[2][0])}
+
+var CONTACT_MM=4;
+function ground(legs, dt){
+  // 1) наклон: только когда все 4 стопы лежат в одной плоскости (стойка и
+  //    фазы четырёхопорности) — тогда корпус определён однозначно. При двух
+  //    опорах (рысь) наклон кинематически не определён: держим прежний.
+  var P4=legs.map(function(L){return L.foot}), ab=planeFit(P4);
+  if(ab){
+    var res=Math.max.apply(null,P4.map(function(p){return Math.abs(p[2]-(ab[0]*p[0]+ab[1]*p[1]+ab[2]))}));
+    if(res<3 && Math.hypot(ab[0],ab[1])<0.6){
+      var tgt=norm([-ab[0],-ab[1],1]), k=Math.min(1,dt*8);
+      W.nk=norm([W.nk[0]+(tgt[0]-W.nk[0])*k,W.nk[1]+(tgt[1]-W.nk[1])*k,W.nk[2]+(tgt[2]-W.nk[2])*k]);
+    }
+  }
+  // вектор «вверх» мира в осях корпуса: + x при носе вверх, + y при правом борте вниз
+  var im=imuNow(), nt=W.nk;
+  if(im){var ir=im.r*D2R, ip=im.p*D2R; nt=[Math.sin(ip),Math.cos(ip)*Math.sin(ir),Math.cos(ip)*Math.cos(ir)];}
+  var kn=Math.min(1,dt*(im?8:14));
+  W.n=norm([W.n[0]+(nt[0]-W.n[0])*kn,W.n[1]+(nt[1]-W.n[1])*kn,W.n[2]+(nt[2]-W.n[2])*kn]);
+  var T=tiltMat(W.n);
+  var ft=legs.map(function(L){return mv(T,L.foot)});
+  var zmin=Math.min.apply(null,ft.map(function(p){return p[2]}));
+  var c=ft.map(function(p){return p[2]<zmin+CONTACT_MM?1:0});
+  // 2) высота: нижняя стопа на полу; лёжа — корпус на брюхе
+  var belly=(U?U.box[2]:BODY.h)/2;
+  W.z=Math.max(-zmin+(legs[0].footR||G.foot_r), belly);
+  W.contact=c;
+  // 3) одометрия: опорные стопы стоят, значит едет корпус (Прокруст 2D)
+  var cur=ft.map(function(p){return [p[0],p[1]]});
+  if(W.prevC){
+    var A=[],B=[];
+    for(var i=0;i<4;i++) if(c[i]&&W.prevC.c[i]){A.push(W.prevC.p[i]);B.push(cur[i]);}
+    if(A.length){
+      var ax=0,ay=0,bx=0,by=0; A.forEach(function(p){ax+=p[0];ay+=p[1]}); B.forEach(function(p){bx+=p[0];by+=p[1]});
+      ax/=A.length;ay/=A.length;bx/=B.length;by/=B.length;
+      var th=0;
+      if(A.length>=2){
+        var sc=0,sd=0;
+        for(var j=0;j<A.length;j++){
+          var a0=A[j][0]-ax,a1=A[j][1]-ay,b0=B[j][0]-bx,b1=B[j][1]-by;
+          sc+=b0*a1-b1*a0; sd+=b0*a0+b1*a1;
+        }
+        th=Math.atan2(sc,sd);
+      }
+      var cs=Math.cos(th),sn=Math.sin(th);
+      var dx=ax-(cs*bx-sn*by), dy=ay-(sn*bx+cs*by);
+      if(Math.hypot(dx,dy)<40 && Math.abs(th)<0.3){      // скачок = смена источника, не шаг
+        var cy=Math.cos(W.yaw),sy=Math.sin(W.yaw);
+        W.x+=cy*dx-sy*dy; W.y+=sy*dx+cy*dy; if(!im) W.yaw+=th;
+      }
+    }
+  }
+  W.prevC={p:cur,c:c};
+  // курс с гиро: от того курса, что был в момент включения, без скачка
+  if(im){ if(!IMUY) IMUY={y0:im.y,w0:W.yaw};
+    var ty=IMUY.w0+(im.y-IMUY.y0)*D2R; W.yaw+=(ty-W.yaw)*Math.min(1,dt*8); }
+  else IMUY=null;
+  var lt=W.trail[W.trail.length-1];
+  if(!lt||Math.hypot(W.x-lt[0],W.y-lt[1])>12){W.trail.push([W.x,W.y]); if(W.trail.length>1500)W.trail.shift();}
+  return T;
+}
+function resetWorld(){W.x=0;W.y=0;W.yaw=0;W.trail=[];W.prevC=null;IMUY=null;}
+
+/* ---------------- камера и отрисовка -------------------------------------- */
+var cv=el('cv'), ctx=cv.getContext('2d');
+var CAM={az:-2.35,el:0.36,dist:780,tx:0,ty:0,tz:120};
+
+function resetCam(){CAM.az=-2.35;CAM.el=0.36;CAM.dist=780;}
+function toggleHip(){
+  OPT.hipOut=!OPT.hipOut; var b=el('tHip');
+  b.className=OPT.hipOut?'on':''; b.textContent=OPT.hipOut?'хип + наружу':'хип как URDF';
+  resetWorld();
+}
+function toggle(k){OPT[k]=!OPT[k]; el('t'+k[0].toUpperCase()+k.slice(1)).className=OPT[k]?'on':'';}
+
+var VW=0,VH=0,DPR=1;
+function resize(){
+  var r=cv.getBoundingClientRect(); DPR=window.devicePixelRatio||1;
+  VW=r.width; VH=r.height; cv.width=Math.round(VW*DPR); cv.height=Math.round(VH*DPR);
+}
+window.addEventListener('resize',resize);
+
+var camP,camF,camR,camU,FOC;
+function setupCam(){
+  var ce=Math.cos(CAM.el);
+  camP=[CAM.tx+CAM.dist*ce*Math.cos(CAM.az), CAM.ty+CAM.dist*ce*Math.sin(CAM.az), CAM.tz+CAM.dist*Math.sin(CAM.el)];
+  camF=norm([CAM.tx-camP[0],CAM.ty-camP[1],CAM.tz-camP[2]]);
+  camR=norm(cross(camF,[0,0,1])); camU=cross(camR,camF);
+  FOC=Math.min(VW,VH)*1.15;
+}
+function toCam(p){var d=[p[0]-camP[0],p[1]-camP[1],p[2]-camP[2]];return [dot(d,camR),dot(d,camU),dot(d,camF)]}
+var NEAR=20;
+function scr(c){return [VW/2+c[0]*FOC/c[2], VH/2-c[1]*FOC/c[2]]}
+function proj(p){var c=toCam(p); if(c[2]<NEAR) return null; var s=scr(c); s.push(c[2]); return s;}
+function clipSeg(a,b){       // в осях камеры, по ближней плоскости
+  var A=toCam(a),B=toCam(b);
+  if(A[2]<NEAR&&B[2]<NEAR) return null;
+  if(A[2]<NEAR){var t=(NEAR-A[2])/(B[2]-A[2]);A=[A[0]+(B[0]-A[0])*t,A[1]+(B[1]-A[1])*t,NEAR];}
+  if(B[2]<NEAR){var t2=(NEAR-B[2])/(A[2]-B[2]);B=[B[0]+(A[0]-B[0])*t2,B[1]+(A[1]-B[1])*t2,NEAR];}
+  return [scr(A),scr(B),(A[2]+B[2])/2];
+}
+
+// корпус -> мир
+function bodyXf(T){
+  var cy=Math.cos(W.yaw),sy=Math.sin(W.yaw);
+  return function(p){var q=mv(T,p);return [W.x+cy*q[0]-sy*q[1], W.y+sy*q[0]+cy*q[1], W.z+q[2]]};
+}
+
+
+
+/* ==========================================================================
+ * ОТРИСОВКА. Два вида, оба — из деталей STL, без «коробки с палками»:
+ *   ДЕТАЛИ  — печатные детали SpotPupPi со светом и настоящей тенью на полу;
+ *   ЧЕРТЁЖ  — те же детали «на просвет» + кинематическая схема поверх:
+ *             рычаги ног, углы суставов, длины звеньев из прошивки, петли
+ *             стоп, опорный многоугольник и проекция центра корпуса.
+ * Нет WebGL или архива STL — остаётся чертёж без деталей (только схема).
+ * Всё нарисованное — следствие 12 углов (робот или прошивка через trace):
+ * кинематика — URDF прошивки, детали лишь висят на её звеньях.
+ * ========================================================================== */
+var VIEW='real';                       // 'real' | 'blue'
+var SHOW=false;                        // режим показа (выставка)
+var FRAME_DT=0.016, lastDrag=0;
+var LEGC=['#ffb454','#5eead4','#f472b6','#7cc4ff'];      // FR FL BR BL
+var FOOTLOOP=[[],[],[],[]];            // стопы в осях корпуса — петли траекторий
+var PRINTS=[], prevC=[1,1,1,1];        // следы касаний на полу
+var MESH={ready:false,loading:false,err:'',parts:[],tris:0,anch:null};
+var glc=el('gl'), ovc=el('ov'), ov=ovc.getContext('2d'), gl=null, GP=null;
+
+function rgba(hex,a){var n=parseInt(hex.slice(1),16);return 'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+a+')'}
+function marginOf(i,a){ if(!LIM) return 99; return Math.min(a-LIM[i][0], LIM[i][1]-a); }
+function mColor(m){return m<5?'#ff6b5a':m<12?'#ffc14d':'#4ee39a'}
+function effView(){ return (MESH.ready||VIEW==='blue')?VIEW:'blue'; }   // без деталей — только чертёж
+
+function setView(v){
+  VIEW=v;
+  el('vReal').className=v==='real'?'on':''; el('vBlue').className=v==='blue'?'on':'';
+  if(v==='real'&&!MESH.ready&&!MESH.loading) loadMeshes();
+}
+
+
+/* ---------------- WebGL: детали ---------------- */
+function glSetup(){
+  try{gl=glc.getContext('webgl',{antialias:true,alpha:true,premultipliedAlpha:true,stencil:true});}catch(e){gl=null;}
+  if(!gl){MESH.err='WebGL в этом браузере недоступен';return false;}
+  var vs='attribute vec3 aP;attribute vec3 aN;uniform mat4 uVP;uniform mat4 uM;uniform mat3 uN;'+
+         'varying vec3 vN;varying vec3 vW;'+
+         'void main(){vec4 w=uM*vec4(aP,1.0);vW=w.xyz;vN=uN*aN;gl_Position=uVP*w;}';
+  var fs='precision mediump float;uniform vec3 uC;uniform vec3 uL;uniform vec3 uE;uniform float uMode;uniform float uA;'+
+         'varying vec3 vN;varying vec3 vW;'+
+         'void main(){'+
+         ' if(uMode>1.5){gl_FragColor=vec4(0.0,0.0,0.0,uA);return;}'+                 // тень
+         ' vec3 n=normalize(vN);vec3 v=normalize(uE-vW);if(dot(n,v)<0.0)n=-n;float ndv=max(dot(n,v),0.0);'+
+         ' if(uMode>0.5){float f=pow(1.0-ndv,2.0);float a=(0.035+0.5*f)*uA;'+              // «на просвет»
+         '   gl_FragColor=vec4(uC*(0.35+1.3*f)*a,0.0);return;}'+   // уже умножено на a: сложение ONE,ONE
+         ' vec3 L2=normalize(vec3(-0.6,-0.35,0.3));float d=max(dot(n,uL),0.0);float d2=max(dot(n,L2),0.0);'+
+         ' vec3 h=normalize(uL+v);float sp=pow(max(dot(n,h),0.0),40.0);float hemi=0.5+0.5*n.z;'+
+         ' vec3 c=uC*(0.30+0.22*hemi+0.68*d+0.22*d2)+vec3(0.30)*sp+vec3(0.35,0.5,0.8)*0.10*pow(1.0-ndv,3.0);'+
+         ' gl_FragColor=vec4(c,1.0);}';
+  function sh(t,src){var s=gl.createShader(t);gl.shaderSource(s,src);gl.compileShader(s);
+    if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(s));return s;}
+  var p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));
+  GP={p:p,aP:gl.getAttribLocation(p,'aP'),aN:gl.getAttribLocation(p,'aN')};
+  ['uVP','uM','uN','uC','uL','uE','uMode','uA'].forEach(function(n){GP[n]=gl.getUniformLocation(p,n)});
+  return true;
+}
+function stlToGL(buf,name){
+  var dv=new DataView(buf), n=dv.getUint32(80,true);
+  if(84+n*50!==buf.byteLength) throw new Error(name+': не двоичный STL');
+  var a=new Float32Array(n*18);
+  for(var i=0;i<n;i++){
+    var o=84+i*50+12, v=[];
+    for(var k=0;k<9;k++) v.push(dv.getFloat32(o+k*4,true));
+    var ux=v[3]-v[0],uy=v[4]-v[1],uz=v[5]-v[2],wx=v[6]-v[0],wy=v[7]-v[1],wz=v[8]-v[2];
+    var nx=uy*wz-uz*wy,ny=uz*wx-ux*wz,nz=ux*wy-uy*wx,l=Math.hypot(nx,ny,nz)||1;
+    for(var j=0;j<3;j++){var b=i*18+j*6;a[b]=v[j*3];a[b+1]=v[j*3+1];a[b+2]=v[j*3+2];a[b+3]=nx/l;a[b+4]=ny/l;a[b+5]=nz/l;}
+  }
+  var g=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,g); gl.bufferData(gl.ARRAY_BUFFER,a,gl.STATIC_DRAW);
+  return {buf:g,count:n*3,tris:n};
+}
+function m4(R,p){return [R[0][0],R[1][0],R[2][0],0, R[0][1],R[1][1],R[2][1],0, R[0][2],R[1][2],R[2][2],0, p[0],p[1],p[2],1]}
+function m4mul(A,B){var C=new Array(16);
+  for(var c=0;c<4;c++)for(var r=0;r<4;r++){var s=0;for(var k=0;k<4;k++)s+=A[k*4+r]*B[c*4+k];C[c*4+r]=s;}return C;}
+function hexRGB(h){return [parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255]}
+function loadMeshes(){
+  if(MESH.loading||MESH.ready) return Promise.resolve();
+  MESH.loading=true;
+  return fetch('/mesh/assembly').then(function(r){return r.json()}).then(function(a){
+    if(a.err) throw new Error(a.err);
+    if(!a.zip_ok) throw new Error('нет архива STL: '+a.zip_path);
+    if(!gl&&!glSetup()) throw new Error(MESH.err);
+    var files=[], seen={}; a.parts.forEach(function(p){if(!seen[p.file]){seen[p.file]=1;files.push(p.file);}});
+    var B={};
+    return Promise.all(files.map(function(f){
+      return fetch('/mesh/stl?f='+encodeURIComponent(f)).then(function(r){if(!r.ok)throw new Error('не отдан '+f);return r.arrayBuffer()})
+        .then(function(b){B[f]=stlToGL(b,f)});
+    })).then(function(){
+      var anch=[{},{},{},{}];
+      MESH.parts=a.parts.map(function(p){
+        var m=/_(FR|FL|BR|BL)$/.exec(p.name), leg=m?LEGN.indexOf(m[1]):-1;
+        var j=/^hip_/.test(p.link)?0:/^thigh_/.test(p.link)?1:/^shank_/.test(p.link)?2:-1;
+        if(leg>=0&&p.anchors) Object.keys(p.anchors).forEach(function(k){anch[leg][k]={link:p.link,pt:tpt({R:p.R,p:p.t},p.anchors[k])};});
+        return {p:p,g:B[p.file],col:hexRGB(p.color),orig:hexRGB(p.color),M:m4(p.R,p.t),leg:leg,joint:(leg>=0&&j>=0)?leg*3+j:-1,
+                foot:/^foot_/.test(p.name),body:leg<0};
+      });
+      MESH.anch=anch.every(function(A){return A.hip&&A.thigh&&A.knee&&A.foot})?anch:null;
+      MESH.tris=MESH.parts.reduce(function(s,q){return s+q.g.tris},0);
+      MESH.ready=true; MESH.err=''; applyPaint();
+      addLine('[пульт] внешний вид: '+MESH.parts.length+' деталей STL, '+Math.round(MESH.tris/1000)+' тыс. треугольников ('+a.source+')');
+    });
+  }).catch(function(e){
+    MESH.err=e.message;
+    addLine('[пульт] детали STL не загружены — остаётся вид «чертёж» без деталей: '+e.message);
+  }).then(function(){MESH.loading=false;});
+}
+function tintReal(c,m){
+  if(m<5)  return [c[0]*.45+.55*.9,c[1]*.45+.55*.25,c[2]*.45+.55*.2];
+  if(m<12) return [c[0]*.55+.45*.95,c[1]*.55+.45*.72,c[2]*.55+.45*.2];
+  return c;
+}
+function glRender(ang,legs,T,view){
+  if(glc.width!==cv.width||glc.height!==cv.height){glc.width=cv.width;glc.height=cv.height;}
+  gl.viewport(0,0,glc.width,glc.height);
+  gl.clearColor(0,0,0,0); gl.clearStencil(0);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT|gl.STENCIL_BUFFER_BIT);
+  gl.useProgram(GP.p);
+  // вид и перспектива — та же камера, что у 2D-слоёв (FOC в пикселях)
+  var V=[camR[0],camU[0],camF[0],0, camR[1],camU[1],camF[1],0, camR[2],camU[2],camF[2],0,
+         -dot(camR,camP),-dot(camU,camP),-dot(camF,camP),1];
+  var n=NEAR, f=30000;
+  var P=[2*FOC/VW,0,0,0, 0,2*FOC/VH,0,0, 0,0,(f+n)/(f-n),1, 0,0,-2*f*n/(f-n),0];
+  var L=norm([0.35,0.5,0.8]);
+  gl.uniformMatrix4fv(GP.uVP,false,new Float32Array(m4mul(P,V)));
+  gl.uniform3fv(GP.uL,new Float32Array(L));
+  gl.uniform3fv(GP.uE,new Float32Array(camP));
+  var cy=Math.cos(W.yaw),sy=Math.sin(W.yaw);
+  var Mb=m4(mm3([[cy,-sy,0],[sy,cy,0],[0,0,1]],T),[W.x,W.y,W.z]);
+  gl.enableVertexAttribArray(GP.aP); gl.enableVertexAttribArray(GP.aN);
+  var items=[];
+  MESH.parts.forEach(function(q){
+    var LT=legs.T[q.p.link]; if(LT) items.push({q:q,M:m4mul(m4mul(Mb,m4(LT.R,LT.p)),q.M)});
+  });
+  function drawItem(it,M){
+    gl.uniformMatrix4fv(GP.uM,false,new Float32Array(M));
+    gl.uniformMatrix3fv(GP.uN,false,new Float32Array([M[0],M[1],M[2],M[4],M[5],M[6],M[8],M[9],M[10]]));
+    gl.bindBuffer(gl.ARRAY_BUFFER,it.q.g.buf);
+    gl.vertexAttribPointer(GP.aP,3,gl.FLOAT,false,24,0);
+    gl.vertexAttribPointer(GP.aN,3,gl.FLOAT,false,24,12);
+    gl.drawArrays(gl.TRIANGLES,0,it.q.g.count);
+  }
+  if(view==='real'){
+    // 1) тень: проекция деталей на пол вдоль света; трафарет — каждый пиксель темнеет один раз
+    var Ls=norm([0.18,0.26,1.0]), lx=Ls[0]/Ls[2], ly=Ls[1]/Ls[2], h=0.5;   // тень — от света почти сверху
+    var S=[1,0,0,0, 0,1,0,0, -lx,-ly,0,0, lx*h,ly*h,h,1];
+    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    gl.enable(gl.STENCIL_TEST); gl.stencilFunc(gl.EQUAL,0,0xff); gl.stencilOp(gl.KEEP,gl.KEEP,gl.INCR);
+    gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA,gl.ONE,gl.ONE_MINUS_SRC_ALPHA);
+    gl.uniform1f(GP.uMode,2); gl.uniform1f(GP.uA,0.42);
+    items.forEach(function(it){drawItem(it,m4mul(S,it.M))});
+    gl.disable(gl.STENCIL_TEST); gl.disable(gl.BLEND);
+    // 2) детали со светом
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true); gl.disable(gl.CULL_FACE);
+    gl.uniform1f(GP.uMode,0); gl.uniform1f(GP.uA,1);
+    items.forEach(function(it){
+      var q=it.q, c=q.col;
+      if(q.foot&&q.leg>=0&&W.contact[q.leg]) c=[c[0]*.6+.4*.31,c[1]*.6+.4*.79,c[2]*.6+.4*.54];   // стопа в опоре
+      else if(q.joint>=0) c=tintReal(c,marginOf(q.joint,ang[q.joint]));                    // сустав у предела
+      gl.uniform3fv(GP.uC,new Float32Array(c)); drawItem(it,it.M);
+    });
+  } else {
+    // «на просвет»: сложение без глубины — видно всё, края светятся
+    gl.disable(gl.DEPTH_TEST); gl.depthMask(false);
+    gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE,gl.ONE,gl.ZERO,gl.ONE);
+    gl.uniform1f(GP.uMode,1); gl.uniform1f(GP.uA,1);
+    items.forEach(function(it){
+      var q=it.q, c=q.body?[0.35,0.72,1.0]:hexRGB(LEGC[q.leg]);
+      if(q.joint>=0){var m=marginOf(q.joint,ang[q.joint]); if(m<5)c=[1,0.35,0.3]; else if(m<12)c=[1,0.75,0.3];}
+      gl.uniform3fv(GP.uC,new Float32Array(c)); drawItem(it,it.M);
+    });
+    gl.disable(gl.BLEND); gl.depthMask(true);
+  }
+}
+
+/* ---------------- скелет: точки рычагов в мире ---------------- */
+function skeleton(legs,T){
+  var X=bodyXf(T), out=[];
+  for(var i=0;i<4;i++){
+    if(MESH.ready&&MESH.anch){
+      var A=MESH.anch[i];
+      out.push(['hip','thigh','knee','foot'].map(function(k){var a=A[k];return X(tpt(legs.T[a.link],a.pt))}));
+    } else {
+      var L=legs[i]; out.push([X(L.hip),X(L.sh),X(L.knee),X(L.foot)]);
+    }
+  }
+  return out;
+}
+function footBody(legs,i){       // стопа в осях корпуса (без наклона) — для петель
+  if(MESH.ready&&MESH.anch){var a=MESH.anch[i].foot; return tpt(legs.T[a.link],a.pt);}
+  return legs[i].foot;
+}
+
+/* ---------------- 2D: фон, пол, след ---------------- */
+function background(view){
+  var g=ctx.createLinearGradient(0,0,0,VH);
+  if(view==='blue'){g.addColorStop(0,'#04101f');g.addColorStop(1,'#0a2242');}
+  else {g.addColorStop(0,'#0b0e0d');g.addColorStop(1,'#171d1a');}
+  ctx.fillStyle=g; ctx.fillRect(0,0,VW,VH);
+  // пятно света на полу под роботом
+  var c=proj([W.x,W.y,0]);
+  if(c){
+    var r=Math.max(80,650*FOC/c[2]);
+    var rg=ctx.createRadialGradient(c[0],c[1],0,c[0],c[1],r);
+    rg.addColorStop(0,view==='blue'?'rgba(60,150,255,.16)':'rgba(190,255,120,.08)');
+    rg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.save(); ctx.translate(c[0],c[1]); ctx.scale(1,0.45); ctx.translate(-c[0],-c[1]);
+    ctx.fillStyle=rg; ctx.beginPath(); ctx.arc(c[0],c[1],r,0,7); ctx.fill(); ctx.restore();
+  }
+}
+function grid(view){
+  var step=50, R=1500, gx=Math.round(CAM.tx/step)*step, gy=Math.round(CAM.ty/step)*step;
+  var col=view==='blue'?'110,190,255':'130,160,140', k0=view==='blue'?1.4:1;
+  ctx.lineCap='butt';
+  for(var k=-R;k<=R;k+=step){
+    line([gx+k,gy-R,0],[gx+k,gy+R,0],((gx+k)%250===0));
+    line([gx-R,gy+k,0],[gx+R,gy+k,0],((gy+k)%250===0));
+  }
+  function line(a,b,major){
+    var N=10;
+    for(var i=0;i<N;i++){
+      var p=[a[0]+(b[0]-a[0])*i/N,a[1]+(b[1]-a[1])*i/N,0], q=[a[0]+(b[0]-a[0])*(i+1)/N,a[1]+(b[1]-a[1])*(i+1)/N,0];
+      var d=Math.hypot((p[0]+q[0])/2-CAM.tx,(p[1]+q[1])/2-CAM.ty);
+      var al=Math.max(0,1-d/R)*(major?0.30:0.11)*k0;
+      if(al<0.01) continue;
+      var s=clipSeg(p,q); if(!s) continue;
+      ctx.strokeStyle='rgba('+col+','+al.toFixed(3)+')'; ctx.lineWidth=major?1.2:1;
+      ctx.beginPath(); ctx.moveTo(s[0][0],s[0][1]); ctx.lineTo(s[1][0],s[1][1]); ctx.stroke();
+    }
+  }
+}
+function trail(view){
+  if(!OPT.trail||W.trail.length<2) return;
+  ctx.strokeStyle=view==='blue'?'rgba(120,200,255,.55)':'rgba(91,157,249,.5)'; ctx.lineWidth=2; ctx.setLineDash([6,5]);
+  ctx.beginPath(); var st=false;
+  for(var t=0;t<W.trail.length;t++){
+    var pp=proj([W.trail[t][0],W.trail[t][1],0.5]);
+    if(!pp){st=false;continue;}
+    if(!st){ctx.moveTo(pp[0],pp[1]);st=true;} else ctx.lineTo(pp[0],pp[1]);
+  }
+  ctx.stroke(); ctx.setLineDash([]);
+}
+function footprints(S,view,now){
+  for(var i=0;i<4;i++){
+    if(W.contact[i]&&!prevC[i]) PRINTS.push({x:S[i][3][0],y:S[i][3][1],leg:i,t:now});
+    prevC[i]=W.contact[i];
+  }
+  while(PRINTS.length&&now-PRINTS[0].t>9000) PRINTS.shift();
+  PRINTS.forEach(function(p){
+    var a=1-(now-p.t)/9000, c=proj([p.x,p.y,0]); if(!c) return;
+    var r=Math.max(2,22*FOC/c[2]);
+    ctx.fillStyle=rgba(LEGC[p.leg],(view==='blue'?0.35:0.22)*a);
+    ctx.beginPath(); ctx.ellipse(c[0],c[1],r,r*0.42,0,0,7); ctx.fill();
+  });
+}
+
+/* ---------------- чертёж поверх: схема, углы, опора ---------------- */
+function hull(P){
+  P=P.slice().sort(function(a,b){return a[0]-b[0]||a[1]-b[1]});
+  if(P.length<3) return P;
+  function cr(o,a,b){return (a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0])}
+  var lo=[],up=[];
+  P.forEach(function(p){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)});
+  P.slice().reverse().forEach(function(p){while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)});
+  return lo.slice(0,-1).concat(up.slice(0,-1));
+}
+function segDist(p,a,b){
+  var dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2));
+  return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
+}
+function support(S,g){        // опорный многоугольник и центр корпуса на полу
+  var pts=[]; for(var i=0;i<4;i++) if(W.contact[i]) pts.push([S[i][3][0],S[i][3][1]]);
+  var com=[W.x,W.y], info=null;
+  if(pts.length>=3){
+    var H=hull(pts), inside=true, dmin=1e9;
+    for(var k=0;k<H.length;k++){
+      var a=H[k],b=H[(k+1)%H.length];
+      if((b[0]-a[0])*(com[1]-a[1])-(b[1]-a[1])*(com[0]-a[0])<0) inside=false;
+      dmin=Math.min(dmin,segDist(com,a,b));
+    }
+    info={poly:H,margin:inside?dmin:-dmin};
+  } else if(pts.length===2){
+    info={poly:pts,margin:-segDist(com,pts[0],pts[1]),line:true};
+  }
+  if(info){
+    var P=info.poly.map(function(p){return proj([p[0],p[1],0.8])});
+    if(P.every(Boolean)){
+      var ok=info.margin>=0, col=ok?'78,227,154':'255,193,77';
+      g.fillStyle='rgba('+col+',0.10)'; g.strokeStyle='rgba('+col+',0.85)'; g.lineWidth=1.5; g.setLineDash([5,4]);
+      g.beginPath(); P.forEach(function(p,i){i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])});
+      if(!info.line){g.closePath(); g.fill();} g.stroke(); g.setLineDash([]);
+    }
+  }
+  var c=proj([com[0],com[1],0.8]);
+  if(c){
+    g.strokeStyle='#e8f3ff'; g.lineWidth=1.5; var r=7;
+    g.beginPath(); g.arc(c[0],c[1],r,0,7); g.moveTo(c[0]-r-4,c[1]); g.lineTo(c[0]+r+4,c[1]); g.moveTo(c[0],c[1]-r-4); g.lineTo(c[0],c[1]+r+4); g.stroke();
+    g.fillStyle='#e8f3ff'; g.beginPath(); g.arc(c[0],c[1],r,0,Math.PI/2); g.lineTo(c[0],c[1]); g.fill();
+    g.beginPath(); g.arc(c[0],c[1],r,Math.PI,Math.PI*1.5); g.lineTo(c[0],c[1]); g.fill();
+    if(info){
+      g.font='600 11px ui-monospace,Menlo,Consolas,monospace'; g.fillStyle=info.margin>=0?'#8ff0bf':'#ffd27a';
+      g.fillText(info.line?'опора на двух: откл. '+Math.abs(info.margin).toFixed(0)+' мм'
+                          :(info.margin>=0?'запас устойчивости ':'ЦТ вне опоры ')+Math.abs(info.margin).toFixed(0)+' мм',c[0]+14,c[1]+18);
+    }
+  }
+}
+function glow(g,col,blur){g.shadowColor=col;g.shadowBlur=blur;}
+function blueprint(g,ang,legs,T,S){
+  var X=bodyXf(T);
+  // петли стоп в осях корпуса: видно, где опора и где перенос
+  for(var i=0;i<4;i++){
+    var L=FOOTLOOP[i]; if(L.length<2) continue;
+    g.strokeStyle=rgba(LEGC[i],0.55); g.lineWidth=1.6; g.beginPath(); var st=false;
+    for(var k=0;k<L.length;k++){var p=proj(X(L[k])); if(!p){st=false;continue;} if(!st){g.moveTo(p[0],p[1]);st=true;} else g.lineTo(p[0],p[1]);}
+    g.stroke();
+  }
+  // какие ноги ближе к камере — у них подписи
+  // подписи углов — только у ближней к камере ноги, чтобы не было каши
+  var near=[0,1,2,3].map(function(i){return toCam(S[i][1])[2]});
+  var lim=Math.min.apply(null,near)+0.001;
+  g.font='600 10.5px ui-monospace,Menlo,Consolas,monospace';
+  for(var i2=0;i2<4;i2++){
+    var P=S[i2].map(proj); if(!P.every(Boolean)) continue;
+    var col=LEGC[i2];
+    glow(g,col,10); g.strokeStyle=col; g.lineWidth=2.6; g.lineCap='round'; g.lineJoin='round';
+    g.beginPath(); P.forEach(function(p,k){k?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])}); g.stroke();
+    g.shadowBlur=0;
+    // суставы: кольцо цвета запаса до предела
+    for(var j=0;j<3;j++){
+      var q=P[j], m=marginOf(i2*3+j,ang[i2*3+j]), r=j===0?7:6;
+      g.fillStyle='#07162c'; g.beginPath(); g.arc(q[0],q[1],r,0,7); g.fill();
+      g.strokeStyle=mColor(m); g.lineWidth=2.2; g.stroke();
+    }
+    // стопа
+    g.fillStyle=W.contact[i2]?'#4ee39a':'#07162c'; g.strokeStyle=col; g.lineWidth=2;
+    g.beginPath(); g.arc(P[3][0],P[3][1],5,0,7); g.fill(); g.stroke();
+    if(near[i2]<=lim){
+      g.fillStyle='rgba(220,236,255,.95)';
+      var nm=['хип','бедро','колено'];
+      // хип и бедро рядом — хип подписан слева, бедро справа
+      g.textAlign='right'; g.fillText(nm[0]+' '+ang[i2*3].toFixed(1)+'°',P[0][0]-10,P[0][1]-10);
+      g.textAlign='left';
+      g.fillText(nm[1]+' '+ang[i2*3+1].toFixed(1)+'°',P[1][0]+12,P[1][1]+4);
+      g.fillText(nm[2]+' '+ang[i2*3+2].toFixed(1)+'°',P[2][0]+12,P[2][1]+4);
+      // длины звеньев — из прошивки
+      g.fillStyle='rgba(150,205,255,.85)';
+      var mf=[(P[1][0]+P[2][0])/2,(P[1][1]+P[2][1])/2], mt=[(P[2][0]+P[3][0])/2,(P[2][1]+P[3][1])/2];
+      g.fillText(G.femur.toFixed(1)+' мм',mf[0]+10,mf[1]); g.fillText(G.tibia.toFixed(1)+' мм',mt[0]+10,mt[1]);
+    }
+  }
+}
+function legLabels(g,S){
+  if(!OPT.labels) return;
+  g.font='700 11px ui-monospace,Menlo,Consolas,monospace';
+  for(var i=0;i<4;i++){
+    var p=proj(S[i][3]); if(!p) continue;
+    g.fillStyle=LEGC[i]; g.fillText(LEGN[i],p[0]+16,p[1]+4);
+  }
+}
+function sheet(g){            // рамка листа и штамп — как на чертеже
+  var m=10, w=VW-2*m, h=VH-2*m;
+  g.strokeStyle='rgba(140,200,255,.35)'; g.lineWidth=1; g.strokeRect(m,m,w,h);
+  g.strokeRect(m+4,m+4,w-8,h-8);
+  if(!SHOW) return;                      // штамп — только в режиме показа, в пульте мешает собаке
+  var bw=300, bh=78, x=VW-m-4-bw, y=VH-m-4-bh;
+  g.fillStyle='rgba(4,16,31,.78)'; g.fillRect(x,y,bw,bh); g.strokeRect(x,y,bw,bh);
+  g.beginPath(); g.moveTo(x,y+30); g.lineTo(x+bw,y+30); g.moveTo(x+170,y+30); g.lineTo(x+170,y+bh); g.stroke();
+  g.fillStyle='#e8f3ff'; g.font='700 15px ui-monospace,Menlo,Consolas,monospace';
+  g.fillText('SPOTTY · «РЕБУТ»',x+10,y+21);
+  g.font='10.5px ui-monospace,Menlo,Consolas,monospace'; g.fillStyle='rgba(190,222,255,.9)';
+  var gait=MODE==='sim'?GAITS[SIM.gait][0]:(liveSt?GAITS[liveSt.gi][0]:'—');
+  var src=MODE==='sim'?'углы: прошивка (trace)':'углы: робот, живые';
+  g.fillText('кинематическая схема',x+10,y+47); g.fillText(src,x+10,y+64);
+  g.fillText('походка '+gait,x+180,y+47); g.fillText('мм · SpotMicro',x+180,y+64);
+}
+
+/* ---------------- кадр ---------------- */
+function draw(ang,legs,T){
+  var view=effView(), now=performance.now();
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  if(SHOW&&now-lastDrag>4000) CAM.az+=FRAME_DT*0.10;              // показ: медленный облёт
+  if(OPT.follow){CAM.tx+=(W.x-CAM.tx)*0.12; CAM.ty+=(W.y-CAM.ty)*0.12;}
+  CAM.tz=W.z*0.6;
+  setupCam();
+  background(view); grid(view); trail(view);
+  var S=skeleton(legs,T); LAST_S=S;
+  footprints(S,view,now);
+  for(var i=0;i<4;i++){FOOTLOOP[i].push(footBody(legs,i)); if(FOOTLOOP[i].length>260) FOOTLOOP[i].shift();}
+  var useGL=MESH.ready&&gl;
+  glc.style.display=useGL?'block':'none';
+  if(useGL) glRender(ang,legs,T,view);
+  if(ovc.width!==cv.width||ovc.height!==cv.height){ovc.width=cv.width;ovc.height=cv.height;}
+  ov.setTransform(DPR,0,0,DPR,0,0); ov.clearRect(0,0,VW,VH);
+  if(view==='blue'){
+    support(S,ov);
+    blueprint(ov,ang,legs,T,S);
+    sheet(ov);
+  }
+  legLabels(ov,S);
+  drawGizmo(ov);
+}
+
+// мышь: вращение и масштаб
+(function(){
+  var drag=null;
+  cv.addEventListener('pointerdown',function(e){drag=[e.clientX,e.clientY];lastDrag=performance.now();cv.setPointerCapture(e.pointerId);cv.classList.add('drag')});
+  cv.addEventListener('pointermove',function(e){
+    if(!drag) return;
+    CAM.az-=(e.clientX-drag[0])*0.008; CAM.el+=(e.clientY-drag[1])*0.006;
+    CAM.el=Math.max(0.05,Math.min(1.45,CAM.el)); drag=[e.clientX,e.clientY]; lastDrag=performance.now();
+  });
+  cv.addEventListener('pointerup',function(){drag=null;cv.classList.remove('drag')});
+  cv.addEventListener('wheel',function(e){e.preventDefault(); lastDrag=performance.now();
+    CAM.dist*=Math.exp(e.deltaY*0.001); CAM.dist=Math.max(250,Math.min(4000,CAM.dist));},{passive:false});
+  cv.addEventListener('dblclick',resetCam);
+})();
+
+/* ---------------- общее состояние страницы -------------------------------- */
+var MODE='live';
+var disp=clampRest();          // углы, которые сейчас нарисованы
+var liveTgt=null, liveSt=null, liveOk=false, liveErr='';
+var FW={ok:false};
+
+function hms(){var d=new Date();function z(n){return (n<10?'0':'')+n}return z(d.getHours())+':'+z(d.getMinutes())+':'+z(d.getSeconds());}
+var LOG_NL=true;          // лог робота: следующий кусок начинается с новой строки
+function stamp(txt){      // [чч:мм:сс] в начало каждой непустой строки
+  var parts=String(txt).split('\n'), out='', t=hms();
+  for(var i=0;i<parts.length;i++){
+    if(i) out+='\n';
+    if((i||LOG_NL)&&parts[i]!=='') out+='['+t+'] ';
+    out+=parts[i];
+  }
+  LOG_NL=/\n$/.test(txt); return out;
+}
+function addLine(s){
+  var L=el('log'); if(!LOG_NL){L.textContent+='\n'; LOG_NL=true;}
+  L.textContent+=stamp(s+"\n");
+  if(L.textContent.length>120000) L.textContent=L.textContent.slice(-90000);
+  if(el('auto').checked) L.scrollTop=L.scrollHeight;
+}
+function banner(txt,cls){var b=el('banner'); b.textContent=txt||''; b.className='banner'+(txt?' '+cls:'');}
+
+function setMode(m){
+  if(m===MODE) return;
+  MODE=m;
+  el('bLive').className='live'+(m==='live'?' on':'');
+  el('bSim').className='sim'+(m==='sim'?' on':'');
+  el('addrBox').style.display=m==='live'?'':'none';
+  addLine('');
+  if(m==='sim'){
+    addLine('──────── СИМУЛЯЦИЯ: траектории считает прошивка (trace), робот не опрашивается ────────');
+    if(liveSt&&liveSt.hb&&liveSt.eng)
+      addLine('[!] Робот был под управлением из браузера. Опрос остановлен — через 6 с его watchdog сам сделает x.');
+    simEnter();
+  }else{
+    addLine('──────── ЖИВОЙ: углы с робота '+el('robotAddr').value+' ────────');
+    simLeave();
+  }
+  resetWorld(); W.n=[0,0,1]; W.nk=[0,0,1];
+  drawGaits(); drawParams(); fwBanner();
+}
+
+function send(line){
+  line=String(line).trim(); if(!line) return Promise.resolve();
+  if(MODE==='sim') return simCmd(line);
+  noteSent(line);
+  return fetch('/api/cmd?c='+encodeURIComponent(line),{method:'POST'}).then(function(r){
+    if(!r.ok) return r.text().then(function(t){addLine('[пульт] "'+line+'" отклонена: '+t); toast('Робот не принял «'+line+'»: '+t,'bad');});
+  }).catch(function(){addLine('[пульт] нет связи с сервером пульта'); toast('Нет связи с сервером пульта','bad');});
+}
+function rel(){
+  if(MODE==='sim'||confirm('Снять ШИМ? Серво станут мягкими — стоящий робот сложится.')) send('r');
+}
+function sendRaw(){var v=el('raw').value.trim(); if(v){send(v); el('raw').value='';}}
+
+function setRobot(){
+  var a=el('robotAddr').value.trim();
+  fetch('/pult/robot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({robot:a})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.err) addLine('[пульт] адрес не принят: '+d.err); else addLine('[пульт] робот: '+d.robot);
+    });
+}
+
+/* ---------------- ЖИВОЙ --------------------------------------------------- */
+var logAt=0;
+/* УСТОЙЧИВОСТЬ СВЯЗИ (2026-09-29).
+ * Один потерянный ответ — ещё не обрыв: «НЕТ СВЯЗИ» только после трёх
+ * пропусков подряд (~1 с). Пока их меньше, пульт держит последнее состояние.
+ * LINK копит последние 50 опросов: задержку и долю потерь — это видно в
+ * «Состоянии робота». */
+var LINK={fail:0,hist:[],rtt:[]};
+function linkNote(ok,rtt){
+  LINK.hist.push(ok?1:0); if(LINK.hist.length>50) LINK.hist.shift();
+  if(ok){LINK.rtt.push(rtt); if(LINK.rtt.length>20) LINK.rtt.shift();}
+}
+function linkLoss(){ if(!LINK.hist.length) return 0; var z=0; LINK.hist.forEach(function(v){if(!v)z++}); return z/LINK.hist.length; }
+function linkRtt(){ if(!LINK.rtt.length) return 0; var a=LINK.rtt.slice().sort(function(x,y){return x-y}); return a[a.length>>1]; }
+function linkMiss(why){ LINK.fail++; linkNote(false); liveErr=why; if(LINK.fail>=3) liveOk=false; }
+function livePoll(){
+  var t0=performance.now();
+  return fetch('/api/state').then(function(r){return r.json()}).then(function(s){
+    if(s.err){linkMiss(s.err); return;}
+    if(s.busy) return;
+    LINK.fail=0; linkNote(true,performance.now()-t0);
+    liveOk=true; liveErr=''; liveSt=s; RTT=performance.now()-t0;
+    liveTgt=s.j.map(function(q){return q.a});
+    LIM=s.j.map(function(q){return [q.lo,q.hi]});
+  }).catch(function(){linkMiss('сервер пульта не отвечает');});
+}
+/* Таймер опроса — в фоновом потоке (Worker). Свёрнутую вкладку браузер
+ * замедляет: обычные таймеры раз в секунду, а через 5 минут — раз в минуту.
+ * Прошивка через 12 с тишины останавливает робота, и это выглядело бы как
+ * обрыв. Таймеры Worker так не зажимаются. Нет Worker — обычный таймер. */
+var TICKER=null;
+function tickAfter(ms,fn){
+  if(TICKER===null){
+    try{
+      var src='onmessage=function(e){setTimeout(function(){postMessage(e.data)},e.data.ms)}';
+      TICKER=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+      TICKER.cb={}; TICKER.n=0;
+      TICKER.onmessage=function(e){var f=TICKER.cb[e.data.id]; delete TICKER.cb[e.data.id]; if(f) f();};
+    }catch(e){TICKER=false;}
+  }
+  if(!TICKER) return setTimeout(fn,ms);
+  var id=++TICKER.n; TICKER.cb[id]=fn; TICKER.postMessage({id:id,ms:ms});
+}
+function liveLog(){
+  return fetch('/api/log?from='+logAt).then(function(r){return r.json()}).then(function(d){
+    if(d.err) return;
+    if(d.lost) addLine('[пульт] часть лога робота потеряна (пульт отстал)');
+    logAt=d.next; if(d.txt){scanForRefusals(d.txt); var L=el('log');L.textContent+=stamp(d.txt);if(el('auto').checked)L.scrollTop=L.scrollHeight;}
+  }).catch(function(){});
+}
+/* Один цикл, а не два таймера: WebServer на ESP32 держит одно соединение.
+ * Опрос идёт ТОЛЬКО пока открыт режим ЖИВОЙ — сервер пульта сам робота не
+ * опрашивает, поэтому watchdog прошивки видит реальное присутствие пульта. */
+function liveLoop(){
+  if(MODE!=='live'){tickAfter(300,liveLoop);return;}
+  livePoll().then(liveLog).catch(function(){}).then(function(){tickAfter(200,liveLoop)});
+}
+
+/* ---------------- СИМУЛЯЦИЯ ----------------------------------------------- */
+/* Здесь моделируется только ОБВЯЗКА команд (режимы, отсчёт, рампа 100 °/с).
+ * Сами углы походки и позы приходят из прошивки через /sim/trace. */
+var SIM={
+  mode:'IDLE', eng:false, pose:false,
+  gait:0, cyc:2,
+  p:{engine:0,height:190,span:30,lift:15,penet:0,vel:60,swing:900,crab:0,shiftx:0,shifty:0,
+     roll:0,trim:17,maxrate:100,turn:0,flat:0,smooth:0,shiftgain:0},
+  sum:null, poseAng:null,
+  play:null,          // {frames,dt,t0,t,onEnd}
+  hipOk:false, hipSign:1, trick:null, // трюк: {i,name,keys:[t…],T}
+  a:{},               // угловой движок: amp knee duty period crouch (пусто = пресет походки)
+  prof:-1,            // применённый профиль ходьбы, -1 = ручные параметры
+  ramp:null,          // {to, rate, then}
+  armT:0
+};
+var P_DEFS=[          // команда, ключ, подпись, шаг
+  ['H','height','высота H',5],['P','span','полуразмах шага P',2],['C','lift','подъём стопы C',1],
+  ['V','vel','скорость V, мм/с',5],['W','swing','перенос W, мс',50],['A','penet','продав опоры A',1],
+  ['X','shiftx','сдвиг вперёд X',1],['Y','shifty','сдвиг влево Y',1],['R','roll','крен R, °',1],
+  ['B','shiftgain','перенос по фазе B',0.1],['b','trim','трим b, ° (угловой)',1],['m','maxrate','ограничитель m, °/с',5]
+];
+var SENT={};
+var CART_MAP={engine:'eng',vel:'V',swing:'W',span:'P',lift:'C',height:'H',crab:'D',penet:'A',shiftx:'X',shifty:'Y',roll:'R',shiftgain:'B'};
+function liveCart(){return (liveOk&&liveSt&&liveSt.cart)?liveSt.cart:null;}
+function liveVal(k){ var c=liveCart(); if(c&&CART_MAP[k]&&c[CART_MAP[k]]!==undefined) return +c[CART_MAP[k]]; return SENT[k]; }
+var POSE_KEYS=['height','shiftx','shifty','roll','engine','trim','penet'];         // что пульт отправлял роботу (в ЖИВОМ робот эти поля не отдаёт)
+
+function simParams(){var o={};for(var k in SIM.p)o[k]=SIM.p[k];for(var j in SIM.a)o[j]=SIM.a[j];return o;}
+/* ПРОФИЛИ ХОДЬБЫ — из прошивки (/sim/geom -> profiles, spotty_profiles.h).
+ * В СИМУЛЯЦИИ 'M' ставит те же числа теми же ключами стенда, что прошивка
+ * ставит переменными — копии логики нет, только перенос чисел. */
+var PROFILES=[], PROF_SRC='нет стенда прошивки';
+function simProfile(rest){
+  if(!rest){ simSay('профили: '+PROFILES.map(function(p,i){return i+' '+p.name+' — '+p.ru}).join(' · ')); return Promise.resolve(); }
+  if(busy()){simSay("Идёт походка. Сначала 'x'.");return Promise.resolve();}
+  var i=/^\d+$/.test(rest)?+rest:PROFILES.map(function(p){return p.name}).indexOf(rest);
+  var P=PROFILES[i]; if(!P){simSay("нет такого профиля, 'M' — список");return Promise.resolve();}
+  var oldQ=SIM.a.crouch, oldE=SIM.p.engine, oldH=SIM.p.height;
+  SIM.gait=P.gait; SIM.p.engine=P.engine; SIM.p.trim=P.b; SIM.p.maxrate=P.m; SIM.a={crouch:P.q};
+  if(P.engine===0){ SIM.a.amp=P.t; SIM.a.knee=P.k; SIM.a.duty=P.d; SIM.a.period=P.T; SIM.p.flat=P.f; SIM.p.smooth=P.S; }
+  else { SIM.p.height=P.H; SIM.p.span=P.P; SIM.p.lift=P.C; SIM.p.vel=P.V; SIM.p.swing=P.W; SIM.p.shiftgain=P.B; }
+  SIM.prof=i; drawGaits(); drawParams();
+  simSay(">> профиль '"+P.name+"' — "+P.ru);
+  if(P.air) simSay('[!!] Профиль ТОЛЬКО НА ВЕСУ: на полу он уронит робота.');
+  if(P.m>100) simSay('[!] Быстрый профиль (m '+P.m+'): предел скорости серво не измерен (\'z\'). Сначала на подвесе.');
+  if(SIM.pose) simSay("[i] Поза изменилась. Робот стоит в прежней — 'n' переведёт в новую.");
+  return simPreflight(false).then(function(d){simSay(sumLine(d))}).catch(function(e){simSay('ошибка стенда: '+e.message)});
+}
+function simAng(key,val,lo,hi,label){
+  if(busy()){simSay("Идёт походка. Сначала 'x'.");return Promise.resolve();}
+  if(SIM.p.engine!==0){simSay("'"+label+"' — параметр УГЛОВОГО движка. Включить: 'G 0'.");return Promise.resolve();}
+  if(isNaN(val)||val<lo||val>hi){simSay(label+' <'+lo+'..'+hi+'>');return Promise.resolve();}
+  SIM.a[key]=val; SIM.prof=-1; simSay(label+' = '+val);
+  if(key==='crouch'&&SIM.pose) simSay("[i] Поза изменилась. Робот стоит в прежней — 'n' переведёт в новую.");
+  return simPreflight(false).then(function(d){simSay(sumLine(d))}).catch(function(e){simSay('ошибка стенда: '+e.message)});
+}
+function trace(cycles,settle){
+  return fetch('/sim/trace',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({gait:SIM.gait,cycles:cycles,settle:settle,params:simParams(),decim:3})})
+    .then(function(r){return r.json()}).then(function(d){if(d.err)throw new Error(d.err);return d;});
+}
+function simSay(s){addLine('[сим] '+s); scanForRefusals(s);}
+function sumLine(d){
+  return (d.gait||'')+' · период '+(+d.cycle_ms).toFixed(0)+' мс · duty '+(+d.duty).toFixed(2)+
+    ' · пик '+(+d.peak_rate_dps).toFixed(0)+' из '+(+d.max_rate_dps).toFixed(0)+' °/с';
+}
+function sumWarn(d){
+  var w=[];
+  if(d.pose_ik_fail||d.ik_fail) w.push('IK: точка недостижима — прошивка откажет');
+  if(d.limit_hits) w.push('кламп по жёсткому пределу '+d.limit_hits+' раз — на железе это аварийный стоп');
+  if(d.peak_rate_dps>d.max_rate_dps+0.01) w.push('пик скорости сустава выше ограничителя — траектория будет срезана');
+  return w;
+}
+function simPreflight(verbose){
+  return trace(1,30).then(function(d){
+    SIM.sum=d; SIM.poseAng=d.frames[0].slice();
+    if(d.limits_deg) LIM=d.limits_deg;
+    if(verbose) simSay('предполётная: '+sumLine(d));
+    var w=sumWarn(d); w.forEach(function(x){simSay('[!] '+x)});
+    if(verbose&&!w.length) simSay('замечаний нет');
+    return d;
+  });
+}
+function rampTo(to,rate,then){SIM.ramp={to:to.slice(),rate:rate,then:then||null};}
+function busy(){return SIM.mode==='ХОД'}
+/* ---------------- ТРЮКИ -----------------------------------------------------
+ * Список и кадры — из прошивки: /sim/geom отдаёт tricks[], а /sim/trace с
+ * trick=N прогоняет тот же rampModeTick, что крутится на роботе. Здесь только
+ * кнопки и показ. Запасной список — на случай, если стенда нет (ЖИВОЙ). */
+var TRICKS=[{name:'hiptest',ru:'проверка знака хипа',hip:false},{name:'sit',ru:'сесть',end_sit:true},{name:'paw',ru:'дать лапу',hip:true},
+  {name:'wave',ru:'помахать',hip:true},{name:'bow',ru:'поклон'},{name:'stretch',ru:'потянуться'},{name:'pushup',ru:'отжимания'},
+  {name:'dance',ru:'танец',hip:true},{name:'wiggle',ru:'вилять',hip:true},{name:'look',ru:'оглядеться',hip:true}];
+var TRICK_SRC='запасной список';
+function trickIdx(q){ q=String(q).trim(); if(/^\d+$/.test(q)) return +q<TRICKS.length?+q:-1;
+  for(var i=0;i<TRICKS.length;i++) if(TRICKS[i].name===q) return i; return -1; }
+function hipOkNow(){ return MODE==='sim'?SIM.hipOk:!!(liveSt&&liveSt.thip); }
+function trickNow(){   // {i,k,n} или null
+  if(MODE==='sim') return SIM.trick?{i:SIM.trick.i,k:SIM.trick.k,n:SIM.trick.keys.length}:null;
+  var s=liveSt; if(!liveOk||!s||s.trick===undefined||s.trick<0) return null;
+  var T=TRICKS[s.trick]; return {i:s.trick,k:s.tk,n:T&&T.keys?T.keys+2:0};
+}
+function simTrick(rest){
+  if(!rest){ simSay('трюки: '+TRICKS.map(function(t,i){return i+' '+t.name+' — '+t.ru+(t.hip&&!SIM.hipOk?' [нужен e hip 1]':'')}).join(' · ')); return Promise.resolve(); }
+  var m=/^hip\s*(-?1)?$/.exec(rest);
+  if(m){ if(!m[1]){simSay("e hip <1|-1>: знак хипа, проверенный 'e hiptest'");return Promise.resolve();}
+    SIM.hipOk=true; SIM.hipSign=+m[1]; simSay('>> знак хипа для трюков '+(SIM.hipSign>0?'+1':'-1')+', трюки с хипами открыты'); return Promise.resolve(); }
+  var i=trickIdx(rest);
+  if(i<0){simSay("нет такого трюка, 'e' — список");return Promise.resolve();}
+  if(busy()){simSay("Идёт походка. Сначала 'x'.");return Promise.resolve();}
+  if(!SIM.eng||!SIM.pose||SIM.mode!=='УДЕРЖ'){simSay("Сначала 'n' — трюк начинается из позы.");return Promise.resolve();}
+  var prm=simParams(); prm.trick=i; prm.hipok=SIM.hipOk?1:0; prm.hipsign=SIM.hipSign;
+  return fetch('/sim/trace',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({gait:SIM.gait,cycles:0,settle:0,params:prm,decim:3})})
+    .then(function(r){return r.json()}).then(function(d){
+      if(d.err) throw new Error(d.err);
+      var T=TRICKS[i];
+      if(!d.trick_ok){simSay("ОТКАЗ: трюк '"+T.name+"': "+d.trick_err);return;}
+      if(d.limit_hits){simSay('ОТКАЗ: трюк упёрся в предел сустава ('+d.limit_hits+')');return;}
+      simSay(">> ТРЮК '"+T.name+"' — "+T.ru+". 'x' — замереть, 'n' — в позу.");
+      SIM.mode='ТРЮК'; SIM.pose=false;
+      SIM.trick={i:i,k:0,keys:d.key_t||[],T:d.frames.length*d.dt_s};
+      rampTo(d.frames[0],100,function(){SIM.play={frames:d.frames,dt:d.dt_s,t:0,ph:d.phase_col,onEnd:function(){
+        SIM.trick=null; SIM.mode='УДЕРЖ'; SIM.pose=!d.end_sit;
+        simSay(">> трюк '"+T.name+"' окончен"+(d.end_sit?": сидит. 'n' — встать, 'l' — лечь":', поза'));
+      }};});
+    }).catch(function(e){simSay('ошибка стенда: '+e.message)});
+}
+
+function simEnter(){
+  if(!FW.ok){simSay('стенд прошивки недоступен: '+(FW.fw&&FW.fw.err||'?'));return;}
+  disp=clampRest(); SIM.mode='IDLE'; SIM.eng=false; SIM.pose=false; SIM.play=null; SIM.ramp=null;
+  simSay('робот ЛЕЖИТ (REST_*_DEG), ШИМ не подан. Начать: n, потом w или стрелки.');
+  simPreflight(false).catch(function(e){simSay('ошибка стенда: '+e.message)});
+}
+function simLeave(){SIM.play=null;SIM.ramp=null;el('cd').style.display='none';}
+
+function simCmd(line){
+  var c=line[0], rest=line.slice(1).trim(), v=parseFloat(rest);
+  if(SIM.mode==='ВЗВОД'&&c!=='x'&&c!=='r'){SIM.mode='IDLE';el('cd').style.display='none';simSay('отсчёт отменён');return Promise.resolve();}
+  if(/^[1-9]$/.test(line)){SIM.cyc=+line;simSay('циклов для w: '+SIM.cyc);return Promise.resolve();}
+  function need(ok,msg){if(!ok)simSay(msg);return ok;}
+  function guard(){return need(!busy(),"Идёт походка. Сначала 'x'.")}
+  function cart(w){return need(SIM.p.engine===1,"'"+w+"' — параметр ДЕКАРТОВА движка, сейчас работает угловой. Включить: 'G 1'.")}
+  function setP(key,val,lo,hi,label){
+    if(!guard())return Promise.resolve();
+    if(isNaN(val)||val<lo||val>hi){simSay(label+' <'+lo+'..'+hi+'>');return Promise.resolve();}
+    SIM.p[key]=val; SENT[key]=val; SIM.prof=-1; simSay(label+' = '+val);
+    // как poseChanged() в прошивке: только у параметров, меняющих позу
+    if(SIM.pose&&POSE_KEYS.indexOf(key)>=0) simSay("[i] Поза изменилась. Робот стоит в прежней — 'n' переведёт в новую.");
+    drawParams();
+    return simPreflight(false).then(function(d){simSay(sumLine(d))}).catch(function(e){simSay('ошибка стенда: '+e.message)});
+  }
+  switch(c){
+    case 'e': return simTrick(rest);
+    case 'M': return simProfile(rest);
+    case 't': return simAng('amp',v,0,60,'размах бедра t');
+    case 'k': return simAng('knee',v,0,90,'подъём колена k');
+    case 'd': return simAng('duty',v,0.1,0.9,'duty d');
+    case 'T': return simAng('period',v,300,10000,'период T');
+    case 'q': return simAng('crouch',v,0,120,'присед q');
+    case 'x':
+      if(SIM.trick){SIM.trick=null; SIM.pose=false;}     // как в прошивке: замер на месте, 'n' — в позу
+      SIM.play=null; SIM.ramp=null; el('cd').style.display='none';
+      SIM.mode=SIM.eng?'УДЕРЖ':'IDLE'; simSay('СТОП, удерживаю текущее положение'); return Promise.resolve();
+    case 'r':
+      SIM.play=null; SIM.eng=false; SIM.pose=false; SIM.mode='IDLE'; el('cd').style.display='none';
+      rampTo(clampRest(),400,null);
+      simSay('ШИМ снят. (в симуляции ноги просто складываются; настоящий робот падает как придётся)');
+      return Promise.resolve();
+    case 'p': return simPreflight(true).catch(function(e){simSay('ошибка стенда: '+e.message)});
+    case 'n':
+      SIM.trick=null; if(SIM.play&&SIM.play.onEnd) SIM.play=null;
+      return simPreflight(false).then(function(d){
+        if(sumWarn(d).some(function(x){return x.indexOf('IK')===0||x.indexOf('кламп')===0})){simSay('ОТКАЗ: предполётная не пройдена');return;}
+        if(SIM.eng){SIM.mode='РАМПА';simSay('>> RAMP -> поза');rampTo(SIM.poseAng,100,function(){SIM.pose=true;SIM.mode='УДЕРЖ';});return;}
+        SIM.mode='ВЗВОД'; SIM.armT=performance.now(); simSay('>> ВЗВОД. 5 секунд до первой подачи ШИМ. Любая команда — отмена.');
+      }).catch(function(e){simSay('ошибка стенда: '+e.message)});
+    case 'l':
+      if(!SIM.eng){simSay('ШИМ не подан — робот и так мягкий.');return Promise.resolve();}
+      if(!guard())return Promise.resolve();
+      SIM.mode='РАМПА'; SIM.pose=false; simSay('>> УКЛАДКА -> лёжа');
+      rampTo(clampRest(),100,function(){SIM.mode='УДЕРЖ'}); return Promise.resolve();
+    case 'w':
+      if(!SIM.pose){simSay("Сначала 'n' — взвод и выход в позу.");return Promise.resolve();}
+      if(!guard())return Promise.resolve();
+      return trace(SIM.cyc,0).then(function(d){
+        var w=sumWarn(d);
+        if(d.pose_ik_fail||d.ik_fail||d.limit_hits){w.forEach(function(x){simSay('[!] '+x)});simSay('ОТКАЗ: предполётная не пройдена');return;}
+        w.forEach(function(x){simSay('[!] '+x)});
+        SIM.sum=d; SIM.poseAng=d.frames[0].slice();
+        simSay(">> WALK '"+GAITS[SIM.gait][0]+"': "+SIM.cyc+' цикл(ов) по '+(+d.cycle_ms).toFixed(0)+' мс'+
+               (SIM.p.turn?(SIM.p.turn>0?', разворот ВЛЕВО':', разворот ВПРАВО'):'')+
+               (SIM.p.engine===1&&SIM.p.crab?', направление '+SIM.p.crab+'°':''));
+        SIM.mode='ХОД';
+        rampTo(d.frames[0],SIM.p.maxrate,function(){SIM.play={frames:d.frames,dt:d.dt_s,t:0,ph:d.phase_col};});
+      }).catch(function(e){simSay('ошибка стенда: '+e.message)});
+    case 's':
+      var p=SIM.p;
+      simSay('движок '+(p.engine?'ДЕКАРТОВ':'УГЛОВОЙ')+' · походка '+GAITS[SIM.gait][0]+' · циклов '+SIM.cyc);
+      simSay('H '+p.height+' · P '+p.span+' · C '+p.lift+' · A '+p.penet+' · V '+p.vel+' · W '+p.swing+' · D '+p.crab);
+      simSay('X '+p.shiftx+' · Y '+p.shifty+' · R '+p.roll+' · B '+p.shiftgain+' · b '+p.trim+' · m '+p.maxrate+' · u '+p.turn+' · f '+p.flat+' · S '+p.smooth);
+      if(SIM.sum) simSay(sumLine(SIM.sum));
+      return Promise.resolve();
+    case 'h':
+      simSay('в симуляции: p n l w x r s e M · g c u G · t k d T q · H P C A V W D X Y R B · b m f S. Остальное — только на роботе.');
+      return Promise.resolve();
+    case 'g':
+      if(!guard())return Promise.resolve();
+      var gi=isNaN(v)?GAITS.map(function(g){return g[0]}).indexOf(rest):v;
+      if(!(gi>=0&&gi<=4)){simSay('g <0..4> либо g <имя>');return Promise.resolve();}
+      SIM.gait=gi|0; SIM.prof=-1; var cq=SIM.a.crouch; SIM.a={}; if(cq!==undefined) SIM.a.crouch=cq;   // как loadGaitPreset: t k d T — из пресета
+      simSay('походка '+GAITS[SIM.gait][0]); drawGaits();
+      return simPreflight(false).then(function(d){simSay(sumLine(d))}).catch(function(e){simSay('ошибка стенда: '+e.message)});
+    case 'c':
+      if(!(v>=1&&v<=99)){simSay('c <1..99>');return Promise.resolve();}
+      SIM.cyc=v|0; simSay('циклов для w: '+SIM.cyc); return Promise.resolve();
+    case 'u':
+      if(!(v===-1||v===0||v===1)){simSay('u <-1|0|1>');return Promise.resolve();}
+      return setP('turn',v,-1,1,'разворот u');
+    case 'G':
+      if(!(v===0||v===1)){simSay('G <0|1>: 0 угловой движок, 1 декартов');return Promise.resolve();}
+      return setP('engine',v,0,1,'движок G');
+    case 'f': return setP('flat',v,0,1,'траектория f');
+    case 'S': return setP('smooth',v,0,1,'перенос S');
+    case 'b': return setP('trim',v,-45,45,'трим b');
+    case 'm': return setP('maxrate',v,10,600,'ограничитель m');
+    case 'D': if(!cart('D'))return Promise.resolve(); return setP('crab',v,-180,180,'направление D');
+    case 'H': if(!cart('H'))return Promise.resolve(); return setP('height',v,60,240,'высота H');
+    case 'P': if(!cart('P'))return Promise.resolve(); return setP('span',v,0,120,'шаг P');
+    case 'C': if(!cart('C'))return Promise.resolve(); return setP('lift',v,0,80,'подъём C');
+    case 'A': if(!cart('A'))return Promise.resolve(); return setP('penet',v,0,40,'продав A');
+    case 'V': if(!cart('V'))return Promise.resolve(); return setP('vel',v,5,600,'скорость V');
+    case 'W': if(!cart('W'))return Promise.resolve(); return setP('swing',v,50,3000,'перенос W');
+    case 'X': if(!cart('X'))return Promise.resolve(); return setP('shiftx',v,-80,80,'сдвиг X');
+    case 'Y': if(!cart('Y'))return Promise.resolve(); return setP('shifty',v,-80,80,'сдвиг Y');
+    case 'R': if(!cart('R'))return Promise.resolve(); return setP('roll',v,-25,25,'крен R');
+    case 'B': if(!cart('B'))return Promise.resolve(); return setP('shiftgain',v,0,1.5,'перенос по фазе B');
+    default:
+      simSay("'"+line+"' в симуляции не моделируется (стенд trace этот параметр не принимает) — только на роботе.");
+      return Promise.resolve();
+  }
+}
+
+function simStep(dt){
+  if(SIM.mode==='ВЗВОД'){
+    var left=5-(performance.now()-SIM.armT)/1000;
+    el('cd').style.display='flex'; el('cdn').textContent=Math.max(1,Math.ceil(left));
+    if(left<=0){
+      el('cd').style.display='none'; SIM.eng=true; SIM.mode='РАМПА';
+      simSay('ШИМ подан. >> RAMP -> поза (100 °/с)');
+      rampTo(SIM.poseAng,100,function(){SIM.pose=true;SIM.mode='УДЕРЖ';simSay('поза есть');});
+    }
+    return;
+  }
+  if(SIM.ramp){
+    var R=SIM.ramp, done=true, mx=R.rate*dt;
+    for(var i=0;i<12;i++){
+      var d=R.to[i]-disp[i];
+      if(Math.abs(d)>mx){disp[i]+=d>0?mx:-mx;done=false;} else disp[i]=R.to[i];
+    }
+    if(done){SIM.ramp=null; if(R.then)R.then();}
+    return;
+  }
+  if(SIM.play){
+    var P=SIM.play; P.t+=dt;
+    var f=P.t/P.dt, k=Math.floor(f);
+    if(SIM.trick){ var tt=P.t; var kk=0; for(var q=0;q<SIM.trick.keys.length;q++) if(tt>=SIM.trick.keys[q]) kk=q; SIM.trick.k=kk; SIM.trick.t=tt; }
+    if(k>=P.frames.length-1){
+      disp=P.frames[P.frames.length-1].slice(); SIM.play=null;
+      if(P.onEnd){P.onEnd();return;}
+      simSay('циклы пройдены, возврат в позу');
+      SIM.mode='РАМПА';
+      rampTo(SIM.poseAng,100,function(){SIM.mode='УДЕРЖ';});
+      return;
+    }
+    var a=P.frames[k], b=P.frames[k+1], u=f-k;
+    for(var j=0;j<12;j++) disp[j]=a[j]+(b[j]-a[j])*u;
+    P.phase=P.ph[k];
+  }
+}
+
+/* ---------------- интерфейс: походки, параметры, суставы ------------------ */
+// Пресеты из gait_test.ino GAITS[]: фазы FR FL BR BL, duty, период. Если стенд
+// прошивки есть — фазы берутся из /sim/geom (GEOMC), здесь запасной список.
+var GAIT_DEF=[
+  {ph:[0,.5,.5,0],  duty:.50,per:1200,d:'диагональные пары шагают вместе, 2 ноги в опоре'},
+  {ph:[0,.5,0,.5],  duty:.50,per:1200,d:'борта синфазно — корпус качается с боку на бок'},
+  {ph:[0,0,.5,.5],  duty:.50,per:1000,d:'перед и зад парами — опоры на перед и зад вместе нет'},
+  {ph:[0,.5,.25,.75],duty:.75,per:2400,d:'по одной ноге, 3 в опоре — самая устойчивая'},
+  {ph:[0,.1,.6,.5], duty:.40,per:900, d:'ротационный галоп, сдвиг внутри пар'}];
+function drawGaits(){
+  var sel=MODE==='sim'?SIM.gait:(liveSt?liveSt.gi:-1), h='';
+  GAITS.forEach(function(g,i){var D=GAIT_DEF[i];
+    h+='<button class="gcard'+(i===sel?' sel':'')+(g[2]?' air':'')+'" title="g '+i+'" onclick="pickGait('+i+')">'+
+       '<b>'+g[0].toUpperCase()+'</b><span class="gd">'+D.d+'</span><canvas id="gc'+i+'" height="40"></canvas>'+
+       '<span class="gm">duty '+D.duty.toFixed(2)+' · '+(D.per/1000).toFixed(1)+' с'+(g[2]?' · <span class="gw">НА ВЕСУ</span>':'')+'</span></button>';
+  });
+  var e=el('gaits'); if(e._h!==h){e.innerHTML=h; e._h=h;}
+  drawGaitMini(sel);
+}
+function drawGaitMini(sel){
+  var G1=gaitInfo();
+  for(var i=0;i<GAITS.length;i++){
+    var c=el('gc'+i); if(!c||!c.clientWidth) continue;
+    var C=cvs('gc'+i), g=C.g, D=GAIT_DEF[i], gg=GEOMC[i], off=(gg&&gg.phase)||D.ph;
+    var duty=(i===sel&&G1.duty)?+G1.duty:D.duty, rh=(C.h-4)/4;
+    ORDER.forEach(function(l,r){
+      var y=2+r*rh;
+      g.fillStyle='#1c2326'; g.fillRect(0,y+1,C.w,rh-2);
+      g.fillStyle=i===sel?'rgba(180,242,58,.85)':'rgba(180,242,58,.45)';
+      for(var k=0;k<C.w;k++){var lp=(k/C.w+off[l])%1; if(lp<duty) g.fillRect(k,y+1,1,rh-2);}
+    });
+    if(i===sel&&G1.ph!==null&&G1.ph!==undefined){g.fillStyle='#fff'; g.fillRect(G1.ph*C.w-1,0,2,C.h);}
+  }
+}
+function drawParams(){
+  var h='';
+  P_DEFS.forEach(function(d){
+    var lv=MODE==='sim'?SIM.p[d[1]]:liveVal(d[1]), val=lv!==undefined?lv:'';
+    h+='<label>'+d[2]+'</label><input type="number" id="pp_'+d[0]+'" step="'+d[3]+'" value="'+val+'"'+
+       ' onkeydown="if(event.key===\'Enter\')sp(\''+d[0]+'\',\''+d[1]+'\')"><button onclick="sp(\''+d[0]+'\',\''+d[1]+'\')">'+d[0]+'</button>';
+  });
+  el('pgrid').innerHTML=h;
+  el('pnote').textContent=MODE==='sim'
+    ? 'Поля — текущие значения симуляции. Изменение прогоняет прошивку (trace) и пишет период, duty и пик скорости в лог.'
+    : (liveCart()?'Декартовы параметры (G, H, P, C, A, V, W, D, X, Y, R, B) — с робота, из /api/state. Остальные — что пульт отправил в этой сессии.'
+                 :'Робот эти величины в телеметрию не отдаёт (старая прошивка): в полях — то, что пульт отправил в этой сессии. Проверить на роботе: s.');
+}
+function sp(cmd,key){
+  var v=el('pp_'+cmd).value; if(v==='')return;
+  if(MODE==='live') SENT[key]=+v;
+  send(cmd+' '+v);
+}
+
+var jBuilt=false;
+function drawJoints(ang){
+  if(!jBuilt){
+    var h='<span></span>'+JN.map(function(n){return '<span class="h">'+n+'</span>'}).join('');
+    for(var l=0;l<4;l++){
+      h+='<span>'+LEGN[l]+'</span>';
+      for(var j=0;j<3;j++) h+='<div class="jc"><span id="ja'+(l*3+j)+'"></span><div class="trk"><i id="jt'+(l*3+j)+'"></i></div></div>';
+    }
+    el('joints').innerHTML=h; jBuilt=true;
+  }
+  var worst=1e9, wn='';
+  for(var i=0;i<12;i++){
+    var a=ang[i], m=marginOf(i,a);
+    if(m<worst){worst=m;wn=LEGN[i/3|0]+' '+JN[i%3];}
+    var cls=m<5?'g-b':m<12?'g-w':'g-ok';
+    el('ja'+i).innerHTML=a.toFixed(1)+'° <span class="'+cls+'">'+(LIM?'±'+m.toFixed(0):'')+'</span>';
+    if(LIM){var fr=(a-LIM[i][0])/(LIM[i][1]-LIM[i][0]); fr=Math.max(0,Math.min(1,fr));
+      el('jt'+i).style.left='calc('+(fr*100).toFixed(1)+'% - 1px)';}
+  }
+  return [worst,wn];
+}
+
+function flag(id,st,txt){var e=el(id); e.className='f'+(st===1?' on':st===-1?' no':''); e.textContent=txt;}
+function kv(k,v,c){
+  var col=c==='bad'?'var(--bad)':c==='warn'?'var(--warn)':'inherit';
+  return '<b>'+k+'</b><span style="color:'+col+'">'+v+'</span>';
+}
+function fwBanner(){
+  if(MODE==='sim'){
+    if(!FW.ok) banner('Стенд прошивки недоступен — симуляция не работает. '+((FW.fw&&FW.fw.err)||''),'bad');
+    else if(FW.fw.stale) banner('trace собран '+(FW.fw.binary_date||'')+', а прошивка новее ('+FW.fw.stale_files.join(', ')+
+      '). Симуляция показывает ПРЕЖНЮЮ прошивку. Пересобрать: hostcheck/crossbuild.sh trace ../sim/bin','warn');
+    else banner('');
+  } else {
+    banner(liveOk?'':'Нет связи с роботом '+el('robotAddr').value+'. '+liveErr, liveOk?'':'bad');
+  }
+}
+
+var uiT=0;
+function ui(worstInfo){
+  var tag=el('modeTag'), h='', rows='';
+  if(MODE==='live'){
+    var s=liveSt;
+    if(!liveOk||!s){tag.textContent='НЕТ СВЯЗИ';tag.className='modeTag';
+      flag('fNet',-1,'связи нет'); flag('fEng',0,'ШИМ ?'); flag('fPose',0,'поза ?'); flag('fExtra',0,'—');
+      h='<span class="big"><b>ЖИВОЙ</b></span> · нет связи<br>собака на экране застыла в последних полученных углах';
+      el('hud').innerHTML=h; el('kv').innerHTML=kv('робот',el('robotAddr').value,'bad'); fwBanner(); return;}
+    tag.textContent=s.modeName; tag.className='modeTag'+(s.mode===3?' walk':s.mode===1?' arm':'');
+    flag('fNet',1,'связь есть'); flag('fEng',s.eng?1:-1,s.eng?'ШИМ подан':'ШИМ снят');
+    flag('fPose',s.pose?1:0,s.pose?'поза есть':'позы нет');
+    flag('fExtra',s.tab?(s.hb?1:0):-1,!s.tab?'ТАБЛИЦЫ НЕ ПРОШЛИ':s.hb?'пульт = браузер':'пульт = USB');
+    h='<span class="big"><b style="color:var(--ok)">ЖИВОЙ</b> · '+s.modeName+'</span><br>'+
+      GAITS[s.gi][0]+' · фаза '+s.phase.toFixed(2)+' · цикл '+(Math.floor(s.done)+1)+'/'+s.cyc+
+      '<br>углы с робота, '+(imuNow()?'наклон корпуса — IMU':'корпус поставлен по стопам')+(s.trick>=0&&TRICKS[s.trick]?'<br>ТРЮК: '+TRICKS[s.trick].ru+' · кадр '+s.tk:'');
+    rows=kv('походка',GAITS[s.gi][0]+(s.ramping?' · РАЗГОН':''))+
+      kv('фаза',s.phase.toFixed(2)+' · цикл '+(Math.floor(s.done)+1)+'/'+s.cyc)+
+      kv('скорость сустава','нужно '+s.peak.toFixed(0)+' из '+s.rate.toFixed(0)+' °/с',s.peak>s.rate?'bad':'')+
+      kv('наименьший запас',worstInfo[0].toFixed(1)+'° · '+worstInfo[1],worstInfo[0]<5?'bad':worstInfo[0]<12?'warn':'')+
+      kv('срабатываний клампа',s.hits,s.hits?'bad':'')+kv('пропущено тиков',s.over,s.over?'warn':'')+
+      kv('разворот',s.turn?(s.turn>0?'влево':'вправо'):'выключен')+
+      kv('аптайм',(s.ms/1000).toFixed(0)+' с');
+  } else {
+    tag.textContent=SIM.mode; tag.className='modeTag'+(SIM.mode==='ХОД'?' walk':SIM.mode==='ВЗВОД'?' arm':'');
+    flag('fNet',FW.ok?(FW.fw.stale?0:1):-1,FW.ok?(FW.fw.stale?'trace устарел':'прошивка = trace'):'стенда нет');
+    flag('fEng',SIM.eng?1:-1,SIM.eng?'ШИМ подан':'ШИМ снят');
+    flag('fPose',SIM.pose?1:0,SIM.pose?'поза есть':'позы нет');
+    flag('fExtra',SIM.p.engine?1:0,SIM.p.engine?'декартов':'угловой');
+    var sm=SIM.sum;
+    h='<span class="big"><b style="color:var(--sim)">СИМУЛЯЦИЯ</b> · '+SIM.mode+'</span><br>'+
+      GAITS[SIM.gait][0]+(SIM.play&&SIM.play.phase>=0?' · фаза '+SIM.play.phase.toFixed(2):'')+
+      (sm?' · период '+(+sm.cycle_ms).toFixed(0)+' мс':'')+
+      '<br>углы — из прошивки (trace), корпус — кинематика, не физика';
+    rows=kv('движок',SIM.p.engine?'декартов':'угловой')+kv('походка',GAITS[SIM.gait][0])+kv('циклов для w',SIM.cyc)+
+      (sm?kv('период / duty',(+sm.cycle_ms).toFixed(0)+' мс / '+(+sm.duty).toFixed(2))+
+          kv('пик скорости сустава',(+sm.peak_rate_dps).toFixed(0)+' из '+(+sm.max_rate_dps).toFixed(0)+' °/с',sm.peak_rate_dps>sm.max_rate_dps?'bad':'')+
+          kv('кламп / IK',(sm.limit_hits||0)+' / '+(sm.ik_fail||sm.pose_ik_fail?'ОТКАЗ':'ok'),(sm.limit_hits||sm.ik_fail||sm.pose_ik_fail)?'bad':'')+
+          kv('продольная база',(+sm.geom_mm.base_long).toFixed(0)+' мм · '+(sm.geom_mm.base_long_measured?'ИЗМЕРЕНО':'ПРИНЯТО')):'')+
+      kv('наименьший запас',worstInfo[0]<1e8?worstInfo[0].toFixed(1)+'° · '+worstInfo[1]:'—',worstInfo[0]<5?'bad':worstInfo[0]<12?'warn':'');
+  }
+  var dist=Math.hypot(W.x,W.y);
+  h+='<br><span style="color:var(--dim)">модель: '+(U_SRC==='URDF'?'URDF (model.py по геометрии прошивки)':'встроенная схема — URDF не загрузился')+
+     (MESH.ready?' · детали STL SpotPupPi (сборка_stl.json)':' · детали STL не загружены — только чертёж')+'</span>';
+  h+='<br><span style="color:var(--dim)">пройдено от центра '+(dist/10).toFixed(0)+' см · курс '+(W.yaw/D2R).toFixed(0)+'° · высота корпуса '+W.z.toFixed(0)+' мм</span>';
+  if(SHOW){                                   // показ: одна строка, без технических подробностей
+    var md=MODE==='sim'?SIM.mode:(liveSt?liveSt.modeName:'нет связи');
+    var gt=MODE==='sim'?GAITS[SIM.gait][0]:(liveSt?GAITS[liveSt.gi][0]:'');
+    h='<span class="big"><b>SPOTTY · «Ребут»</b></span><br>'+md+(gt?' · '+gt:'')+' · '+(MODE==='sim'?'симуляция по прошивке':'живой робот');
+  }
+  if(!SHOW) h=h.split('<br>').slice(0,2).join('<br>');     // подробности — в панелях
+  el('hud').innerHTML=h; el('kv').innerHTML=rows;
+  if(MODE==='live'){drawGaits();} fwBanner();
+}
+
+/* ---------------- главный цикл ------------------------------------------- */
+var last=performance.now();
+function frame(now){
+  var dt=Math.min(0.1,(now-last)/1000); last=now; FRAME_DT=dt;
+  if(MODE==='live'){
+    if(liveTgt){var k=Math.min(1,dt/0.12); for(var i=0;i<12;i++) disp[i]+=(liveTgt[i]-disp[i])*k;}
+  } else simStep(dt);
+  var legs=fk(disp), T=ground(legs,dt);
+  draw(disp,legs,T);
+  sampleHist(now); fpsN++; if(now-fpsT>1000){FPS=fpsN*1000/(now-fpsT); fpsN=0; fpsT=now;}
+  if(now-uiT>150){uiT=now; ui(drawJoints(disp)); dash();}
+  requestAnimationFrame(frame);
+}
+
+function loadURDF(){
+  return fetch('/sim/urdf').then(function(r){
+    if(!r.ok) return r.text().then(function(t){throw new Error(t)});
+    return r.text();
+  }).then(function(txt){
+    var u=parseURDF(txt);
+    if(u.miss.length) throw new Error('в URDF нет суставов: '+u.miss.join(', '));
+    U=u; U_SRC='URDF'; W.prevC=null;
+    addLine('[пульт] модель собаки: URDF, '+Object.keys(u.links).length+' звеньев, '+u.joints.length+' суставов'+
+            (u.skipped?' (пропущено mesh-элементов: '+u.skipped+')':''));
+  }).catch(function(e){
+    U=null; U_SRC='встроенная';
+    addLine('[пульт] URDF не загружен, рисую встроенную схему model.py: '+e.message);
+  });
+}
+/* ==========================================================================
+ * ПАНЕЛЬ ПРИБОРОВ. Только то, что реально есть: телеметрия робота
+ * (/api/state), сводка прошивки (trace) и кинематика пульта. Датчиков,
+ * которых у Ребута нет (батарея, температуры, нагрузка серво), здесь нет —
+ * на их местах то, что действительно измеряется.
+ * ========================================================================== */
+var CH=null;                                    // каналы PCA9685 из spotty_config.h
+var PWM=null;                                   // JOINT_ZERO_US / JOINT_SIGN / мкс на градус — для ШИМ в симуляции
+var PAINT='neon';
+var GRAPH='j';
+var HIST=[], histT=0, fpsN=0, fpsT=0, FPS=0, RTT=0;
+var LAST_S=null, GEOMC={};
+var ORDER=[1,0,3,2];                            // FL FR BL BR — порядок карточек
+var NEON={F_shoulder:'#2c3236',R_shoulder:'#343b40',F_cover:'#3d444a',R_cover:'#3d444a',T_cover:'#424a51',B_cover:'#30363b',
+          arm_joint:'#4a5259',arm:'#353c42',arm_cover:'#9ad42c',wrist:'#40474e',foot:'#2a2f33'};
+
+function tab(n){
+  for(var i=1;i<=3;i++){el('tab'+i).className=i===n?'on':''; el('page'+i).className='page'+(i===n?' on':'');}
+  if(n===1) setTimeout(resize,20);
+}
+function setShow(on){
+  if(on) tab(1);
+  SHOW=on; document.body.classList.toggle('show',on);
+  el('tShow').className=on?'on':'';
+  setTimeout(resize,40);
+}
+function setGraph(g){GRAPH=g; el('grJ').className=g==='j'?'on':''; el('grM').className=g==='m'?'on':''; el('grO').className=g==='o'?'on':'';}
+function paintOf(q){
+  if(PAINT!=='neon') return q.orig;
+  var k=q.p.name.replace(/_(FR|FL|BR|BL|F|B)$/,'');
+  return NEON[k]?hexRGB(NEON[k]):q.orig;
+}
+function applyPaint(){MESH.parts.forEach(function(q){q.col=paintOf(q)});}
+function togglePaint(){PAINT=PAINT==='neon'?'white':'neon'; var b=el('tPaint'); b.textContent=PAINT==='neon'?'неон':'как Ребут'; applyPaint();}
+
+// ---------- мелкие помощники ----------
+function rowsHTML(R){return R.map(function(r){
+  return '<i class="dot '+(r[0]||'')+'"></i><span>'+r[1]+'</span><span class="v '+(r[3]||'')+'">'+r[2]+'</span>'}).join('')}
+function setRows(id,R){var h=rowsHTML(R); var e=el(id); if(e._h!==h){e.innerHTML=h; e._h=h;}}
+function cvs(id){
+  var c=el(id), d=window.devicePixelRatio||1, w=c.clientWidth, h=c.height/(c._d||1);
+  if(!c._h) c._h=c.getAttribute('height')*1;
+  h=c._h;
+  if(c.width!==Math.round(w*d)||c._d!==d){c.width=Math.round(w*d); c.height=Math.round(h*d); c._d=d; c.style.height=h+'px';}
+  var g=c.getContext('2d'); g.setTransform(d,0,0,d,0,0); g.clearRect(0,0,w,h);
+  return {g:g,w:w,h:h};
+}
+function spark(id,arr,lo,hi,col,thr){
+  var C=cvs(id), g=C.g; if(arr.length<2) return;
+  if(thr!==undefined){var yt=C.h-2-(thr-lo)/(hi-lo)*(C.h-4); g.strokeStyle='rgba(255,193,77,.35)'; g.setLineDash([3,3]); g.beginPath(); g.moveTo(0,yt); g.lineTo(C.w,yt); g.stroke(); g.setLineDash([]);}
+  g.strokeStyle=col; g.lineWidth=1.4; g.beginPath();
+  arr.forEach(function(v,i){var x=i/(arr.length-1)*C.w, y=C.h-2-(Math.max(lo,Math.min(hi,v))-lo)/(hi-lo)*(C.h-4); i?g.lineTo(x,y):g.moveTo(x,y);});
+  g.stroke();
+  g.lineTo(C.w,C.h); g.lineTo(0,C.h); g.closePath(); g.fillStyle=col.replace('rgb(','rgba(').replace(')',',.10)'); g.fill();
+}
+function gauge(id,deg,range){
+  var c=el(id), g=c.getContext('2d'), W2=c.width, R=W2/2-6;
+  g.clearRect(0,0,W2,W2); g.save(); g.translate(W2/2,W2/2);
+  g.strokeStyle='#26302c'; g.lineWidth=5; g.beginPath(); g.arc(0,0,R,0,7); g.stroke();
+  var f=Math.max(-1,Math.min(1,deg/range));
+  g.strokeStyle=Math.abs(deg)>range*0.66?'#ffc14d':'#b4f23a'; g.lineWidth=5; g.lineCap='round';
+  g.beginPath(); g.arc(0,0,R,-Math.PI/2,-Math.PI/2+f*Math.PI,f<0); g.stroke();
+  g.rotate(-deg*D2R); g.strokeStyle='#e4ebe6'; g.lineWidth=2.5;
+  g.beginPath(); g.moveTo(-R+12,0); g.lineTo(R-12,0); g.moveTo(0,0); g.lineTo(0,-R*0.45); g.stroke();
+  g.restore();
+}
+
+// ---------- данные: что есть сейчас ----------
+function legMin(i){var m=1e9,k=0;for(var j=0;j<3;j++){var v=marginOf(i*3+j,disp[i*3+j]);if(v<m){m=v;k=j;}}return [m,k]}
+function tilt(){var n=W.n; return {roll:Math.atan2(n[1],n[2])/D2R, pitch:Math.atan2(n[0],n[2])/D2R}}
+function tiltK(){var n=W.nk; return {roll:Math.atan2(n[1],n[2])/D2R, pitch:Math.atan2(n[0],n[2])/D2R}}
+function supportInfo(S){
+  if(!S) return null;
+  var pts=[]; for(var i=0;i<4;i++) if(W.contact[i]) pts.push([S[i][3][0],S[i][3][1]]);
+  var com=[W.x,W.y];
+  if(pts.length>=3){var H=hull(pts),ins=true,d=1e9;
+    for(var k=0;k<H.length;k++){var a=H[k],b=H[(k+1)%H.length];
+      if((b[0]-a[0])*(com[1]-a[1])-(b[1]-a[1])*(com[0]-a[0])<0) ins=false; d=Math.min(d,segDist(com,a,b));}
+    return {n:pts.length,m:ins?d:-d};}
+  if(pts.length===2) return {n:2,m:-segDist(com,pts[0],pts[1]),line:true};
+  return {n:pts.length,m:null};
+}
+function gaitInfo(){
+  if(MODE==='sim'){var s=SIM.sum;
+    return {gi:SIM.gait, ph:(SIM.play&&SIM.play.phase>=0)?SIM.play.phase:null, duty:s?s.duty:null, off:s?s.phase:null,
+            per:s?s.cycle_ms:null, peak:s?s.peak_rate_dps:null, max:s?s.max_rate_dps:SIM.p.maxrate, vel:SIM.p.engine?SIM.p.vel:null};}
+  var st=liveSt, s=st; if(!st) return {gi:0};
+  var gg=GEOMC[st.gi]; if(!gg&&FW.ok&&!GEOMC['_'+st.gi]){GEOMC['_'+st.gi]=1;
+    fetch('/sim/geom?gait='+st.gi).then(function(r){return r.json()}).then(function(d){if(d.phase)GEOMC[st.gi]=d;});}
+  return {gi:st.gi, ph:st.mode===3?st.phase:null, duty:st.duty, off:gg?gg.phase:null, per:st.per, peak:st.peak, max:st.rate,
+          vel:s.cart?(s.cart.eng?+s.cart.V:null):(SENT.vel!==undefined?SENT.vel:null)};
+}
+function sampleHist(now){
+  if(now-histT<50) return; histT=now;
+  var tk=tiltK(), ia=imuRaw(), si=supportInfo(LAST_S);
+  HIST.push({t:now,a:disp.slice(),m:[0,1,2,3].map(function(i){return legMin(i)[0]}),x:W.x,y:W.y,marg:si&&si.m!==null?si.m:null,
+             kr:tk.roll,kp:tk.pitch,ir:ia?+ia.r:null,ip:ia?+ia.p:null});
+  while(HIST.length&&now-HIST[0].t>6000) HIST.shift();
+}
+function groundSpeed(){
+  if(HIST.length<3) return 0;
+  var b=HIST[HIST.length-1], a=HIST[0];
+  for(var i=HIST.length-1;i>=0;i--){ if(b.t-HIST[i].t>=1000){a=HIST[i];break;} }
+  var dt=(b.t-a.t)/1000; return dt>0.2?Math.hypot(b.x-a.x,b.y-a.y)/dt:0;
+}
+function trailLen(){var s=0;for(var i=1;i<W.trail.length;i++)s+=Math.hypot(W.trail[i][0]-W.trail[i-1][0],W.trail[i][1]-W.trail[i-1][1]);return s}
+
+// ---------- рисование панелей ----------
+function drawContact(){
+  var C=cvs('cContact'), g=C.g, cx=C.w/2, cy=C.h/2, bw=Math.min(C.w*0.34,70), bh=bw*1.35;
+  g.strokeStyle='#39424a'; g.lineWidth=2; g.fillStyle='#1a1f23';
+  g.beginPath(); g.roundRect?g.roundRect(cx-bw/2,cy-bh/2,bw,bh,8):g.rect(cx-bw/2,cy-bh/2,bw,bh); g.fill(); g.stroke();
+  g.fillStyle='#b4f23a'; g.font='600 9px '+getComputedStyle(document.body).fontFamily; g.textAlign='center'; g.fillText('НОС',cx,cy-bh/2+13);
+  // ноги: FR правый-перед, FL левый-перед (вид сверху, нос вверх)
+  var P={0:[cx+bw/2+22,cy-bh/2+8],1:[cx-bw/2-22,cy-bh/2+8],2:[cx+bw/2+22,cy+bh/2-8],3:[cx-bw/2-22,cy+bh/2-8]};
+  var on=[0,1,2,3].filter(function(i){return W.contact[i]});
+  if(on.length>=2){var pts=hull(on.map(function(i){return P[i]}));
+    g.fillStyle='rgba(180,242,58,.08)'; g.strokeStyle='rgba(180,242,58,.45)'; g.setLineDash([4,3]); g.beginPath();
+    pts.forEach(function(p,k){k?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])}); g.closePath(); g.fill(); g.stroke(); g.setLineDash([]);}
+  g.font='600 11px '+getComputedStyle(document.body).fontFamily;
+  for(var i=0;i<4;i++){var p=P[i], c=W.contact[i];
+    g.strokeStyle='#39424a'; g.lineWidth=2; g.beginPath(); g.moveTo(p[0],p[1]); g.lineTo(p[0]+(i%2?bw/2+8:-bw/2-8)*0.6,p[1]); g.stroke();
+    g.beginPath(); g.arc(p[0],p[1],9,0,7); g.fillStyle=c?'#b4f23a':'#1a1f23'; g.fill(); g.strokeStyle=c?'#d9ff8a':'#4a555b'; g.stroke();
+    if(c){g.shadowColor='#b4f23a'; g.shadowBlur=12; g.beginPath(); g.arc(p[0],p[1],5,0,7); g.fill(); g.shadowBlur=0;}
+    g.fillStyle='#cfd8d2'; g.textAlign=i%2?'right':'left'; g.fillText(LEGN[i],p[0]+(i%2?-16:16),p[1]+4);}
+  g.textAlign='left';
+}
+function drawPhase(G1){
+  var C=cvs('cPhase'), g=C.g, x0=34, w=C.w-x0-60, rh=22, y0=10, ff=getComputedStyle(document.body).fontFamily;
+  g.font='600 11px '+ff;
+  if(!G1.duty||!G1.off){g.fillStyle='#86918c'; g.fillText('нет данных о фазировке',x0,30); return;}
+  ORDER.forEach(function(i,r){
+    var y=y0+r*(rh+8);
+    g.fillStyle='#cfd8d2'; g.fillText(LEGN[i],4,y+15);
+    g.fillStyle='#1c2326'; g.fillRect(x0,y,w,rh);
+    // опора: локальная фаза (глоб + сдвиг) mod 1 < duty
+    for(var k=0;k<w;k++){var ph=k/w, lp=(ph+G1.off[i])%1; if(lp<G1.duty){g.fillStyle='rgba(180,242,58,.75)'; g.fillRect(x0+k,y+3,1,rh-6);}}
+    var st=W.contact[i];
+    g.fillStyle=st?'#b4f23a':'#86918c'; g.fillText(st?'опора':'перенос',x0+w+8,y+15);
+  });
+  if(G1.ph!==null&&G1.ph!==undefined){
+    var xm=x0+G1.ph*w; g.strokeStyle='#ffffff'; g.lineWidth=2; g.beginPath(); g.moveTo(xm,y0-4); g.lineTo(xm,y0+4*(rh+8)-4); g.stroke();
+  }
+  g.fillStyle='#86918c'; g.font='11px '+ff;
+  g.fillText('duty '+(+G1.duty).toFixed(2)+(G1.per?' · период '+(G1.per/1000).toFixed(2)+' с':'')+(G1.ph!=null?' · фаза '+G1.ph.toFixed(2):' · стоит'),x0,y0+4*(rh+8)+10);
+}
+function drawTraj(){
+  var C=cvs('cTraj'), g=C.g, cw=C.w/2, ch=C.h/2, ff=getComputedStyle(document.body).fontFamily;
+  g.font='600 10px '+ff;
+  ORDER.forEach(function(i,k){
+    var ox=(k%2)*cw, oy=Math.floor(k/2)*ch, L=FOOTLOOP[i];
+    g.strokeStyle='#1f272a'; g.strokeRect(ox+2,oy+2,cw-4,ch-4);
+    g.fillStyle='#86918c'; g.fillText(LEGN[i],ox+7,oy+14);
+    if(L.length<2) return;
+    var mx=0,mz=0; L.forEach(function(p){mx+=p[0];mz+=p[2]}); mx/=L.length; mz/=L.length;
+    var sc=Math.min((cw-16)/120,(ch-16)/60);
+    function P(p){return [ox+cw/2+(p[0]-mx)*sc, oy+ch/2+6-(p[2]-mz)*sc]}
+    g.strokeStyle=rgba(LEGC[i],.8); g.lineWidth=1.5; g.beginPath();
+    L.forEach(function(p,j){var q=P(p); j?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1])}); g.stroke();
+    var q=P(L[L.length-1]); g.fillStyle=W.contact[i]?'#b4f23a':'#ffffff'; g.beginPath(); g.arc(q[0],q[1],3.5,0,7); g.fill();
+  });
+}
+function drawGraph(){
+  var C=cvs('cGraph'), g=C.g, x0=32, w=C.w-x0-4, h=C.h-18, ff=getComputedStyle(document.body).fontFamily;
+  g.font='10px '+ff; g.fillStyle='#5d6763'; g.strokeStyle='#1c2326'; g.lineWidth=1;
+  var lo,hi,ticks;
+  if(GRAPH==='j'){lo=-120;hi=160;ticks=[-90,0,90];} else if(GRAPH==='o'){lo=-30;hi=30;ticks=[-20,0,20];} else {lo=0;hi=60;ticks=[5,12,30];}
+  function Y(v){return 4+(hi-Math.max(lo,Math.min(hi,v)))/(hi-lo)*h}
+  ticks.forEach(function(t){g.beginPath(); g.moveTo(x0,Y(t)); g.lineTo(x0+w,Y(t)); g.stroke(); g.fillText(t+'°',2,Y(t)+3);});
+  for(var s=0;s<=6;s+=2){g.fillText(s+'с',x0+w-s/6*w-8,C.h-2);}
+  if(HIST.length<2) return;
+  var t1=HIST[HIST.length-1].t;
+  function X(t){return x0+w-(t1-t)/6000*w}
+  if(GRAPH==='j'){
+    for(var i=0;i<12;i++){
+      g.strokeStyle=rgba(LEGC[i/3|0],[0.95,0.75,0.55][i%3]); g.lineWidth=1.2; g.setLineDash([[],[5,3],[2,2]][i%3]);
+      g.beginPath(); HIST.forEach(function(r,k){var x=X(r.t),y=Y(r.a[i]); k?g.lineTo(x,y):g.moveTo(x,y)}); g.stroke();
+    }
+    g.setLineDash([]);
+  } else if(GRAPH==='o'){
+    [['kr','#ffb454',1.1,[4,3]],['kp','#7cc4ff',1.1,[4,3]],['ir','#ffb454',2,[]],['ip','#7cc4ff',2,[]]].forEach(function(L){
+      g.strokeStyle=L[1]; g.lineWidth=L[2]; g.setLineDash(L[3]); g.beginPath(); var on=false;
+      HIST.forEach(function(r){var v=r[L[0]]; if(v===null||v===undefined){on=false;return;} var x=X(r.t),y=Y(v); on?g.lineTo(x,y):g.moveTo(x,y); on=true;});
+      g.stroke();});
+    g.setLineDash([]);
+  } else {
+    [5,12].forEach(function(t){g.strokeStyle=t===5?'rgba(255,90,77,.5)':'rgba(255,193,77,.45)'; g.setLineDash([4,3]); g.beginPath(); g.moveTo(x0,Y(t)); g.lineTo(x0+w,Y(t)); g.stroke();});
+    g.setLineDash([]);
+    for(var l=0;l<4;l++){g.strokeStyle=LEGC[l]; g.lineWidth=1.5; g.beginPath();
+      HIST.forEach(function(r,k){var x=X(r.t),y=Y(r.m[l]); k?g.lineTo(x,y):g.moveTo(x,y)}); g.stroke();}
+  }
+}
+function legendHTML(){
+  if(GRAPH==='j') return LEGN.map(function(L,i){return '<span><i style="background:'+LEGC[i]+'"></i>'+L+' хип/бедро/колено</span>'}).join('');
+  if(GRAPH==='o') return '<span><i style="background:#ffb454"></i>крен</span><span><i style="background:#7cc4ff"></i>тангаж</span>'+
+    '<span>толстая — IMU'+(imuRaw()?'':' (нет данных)')+', пунктир — по опоре</span>';
+  return LEGN.map(function(L,i){return '<span><i style="background:'+LEGC[i]+'"></i>'+L+' наименьший запас</span>'}).join('');
+}
+
+// ---------- быстрые параметры ----------
+var QP=[['V','vel','скорость',5,300,5,'мм/с'],['W','swing','перенос',200,2000,50,'мс'],['P','span','полушаг',0,80,1,'мм'],
+        ['C','lift','подъём',0,50,1,'мм'],['H','height','высота',120,220,1,'мм'],['D','crab','направление',-180,180,5,'°']];
+var qpBuilt=false;
+function buildQP(){
+  var h='';
+  QP.forEach(function(q){
+    h+='<label>'+q[2]+'</label><input type="range" id="qr_'+q[0]+'" min="'+q[3]+'" max="'+q[4]+'" step="'+q[5]+'" '+
+       'oninput="el(\'qn_'+q[0]+'\').value=this.value" onchange="qpSend(\''+q[0]+'\',\''+q[1]+'\')">'+
+       '<input type="number" id="qn_'+q[0]+'" step="'+q[5]+'" onkeydown="if(event.key===\'Enter\')qpSend(\''+q[0]+'\',\''+q[1]+'\',1)">'+
+       '<button onclick="qpSend(\''+q[0]+'\',\''+q[1]+'\',1)">'+q[0]+'</button>';
+  });
+  el('prmQuick').innerHTML=h; qpBuilt=true;
+}
+function qpSend(c,k,fromNum){
+  var v=fromNum?el('qn_'+c).value:el('qr_'+c).value; if(v==='') return;
+  var st=robotState(); if(st.walk){toast('На ходу параметры не меняются','warn',[['СТОП',function(){send('x')}]]); return;}
+  if(MODE==='live') SENT[k]=+v;
+  var inp=el('qn_'+c), t0=performance.now(); inp.classList.remove('okf'); inp.classList.add('pend');
+  Promise.resolve(send(c+' '+v)).then(function(){ setTimeout(function(){
+    inp.classList.remove('pend'); if(lastRefusal<t0){inp.classList.add('okf'); setTimeout(function(){inp.classList.remove('okf')},1200);}
+  },MODE==='sim'?50:900); });
+}
+function syncQP(){
+  if(!qpBuilt) buildQP();
+  QP.forEach(function(q){
+    var v=MODE==='sim'?SIM.p[q[1]]:liveVal(q[1]);
+    var r=el('qr_'+q[0]), n=el('qn_'+q[0]);
+    if(v===undefined){ if(document.activeElement!==n&&n.value!=='') n.value=''; return; }
+    if(document.activeElement!==r) r.value=v;
+    if(document.activeElement!==n&&n.value!==String(v)) n.value=v;
+  });
+}
+
+// ---------- профили ходьбы: панель ----------
+var profBuilt=false;
+var PROF_GROUPS=[['ОСНОВНЫЕ',['norm','steady','high','crawl']],['ВЫСОТА × ТЕМП',['lowfast','lowknee','tiptoe','slowmo']],
+  ['ШАГ И КОЛЕНИ',['stride','mince','march','stomp']],['ЭФФЕКТНЫЕ',['prance','pace']],['НА ВЕСУ И ДЕКАРТОВ',['turbo','bound','gallop','robust']]];
+function profCur(){ if(MODE==='sim') return SIM.prof; var s=liveSt; return (liveOk&&s&&s.prof!==undefined)?s.prof:-1; }
+function runProfile(i){
+  var P=PROFILES[i], st=robotState();
+  if(!st.ok){toast(MODE==='sim'?'Симуляция недоступна: нет стенда прошивки':'Нет связи с роботом','bad');return;}
+  if(st.walk){toast('Профиль меняют на стоящем роботе','warn',[['СТОП',function(){send('x')}]]);return;}
+  if(P.air){toast('«'+P.ru+'» — только НА ВЕСУ: на полу уронит робота','warn',[['Робот на подвесе — включить',function(){send('M '+P.name)}]]);return;}
+  if(P.engine===1&&MODE==='live'){toast('«'+P.ru+'» — декартов движок: на роботе ход закрыт до замера звеньев M1-M3','warn',[['Всё равно выбрать',function(){send('M '+P.name)}]]);return;}
+  send('M '+P.name);
+}
+function drawProfiles(){
+  var box=el('profBox'); if(!box) return;
+  if(!profBuilt){
+    var byName={}; PROFILES.forEach(function(p,i){byName[p.name]=i;});
+    var used={}, h='';
+    function card(i){var P=PROFILES[i]; used[i]=1;
+      var tag=P.air?'<span class="tg air">НА ВЕСУ</span>':P.engine===1?'<span class="tg cart">G 1</span>':P.m>100?'<span class="tg fast">БЫСТРЫЙ</span>':'';
+      var pm=P.engine===0?(GAITS[P.gait][0]+' · q '+P.q+' · t '+P.t+' · k '+P.k+' · T '+P.T):('H '+P.H+' · P '+P.P+' · V '+P.V);
+      return '<button id="pf'+i+'" onclick="runProfile('+i+')" title="M '+P.name+'">'+tag+'<b>'+P.ru.toUpperCase()+'</b>'+
+        '<small>'+P.note+'</small><span class="pm">'+pm+'</span></button>';}
+    PROF_GROUPS.forEach(function(G){
+      var ids=G[1].map(function(n){return byName[n]}).filter(function(x){return x!==undefined});
+      if(ids.length) h+='<div class="pgroup">'+G[0]+'</div><div class="profs">'+ids.map(card).join('')+'</div>';
+    });
+    var rest=PROFILES.map(function(p,i){return i}).filter(function(i){return !used[i]});
+    if(rest.length) h+='<div class="pgroup">ЕЩЁ</div><div class="profs">'+rest.map(card).join('')+'</div>';
+    if(!PROFILES.length) h='<div class="hint">Список приходит из прошивки через стенд trace — его нет. Команда M на роботе работает и без него: M — список.</div>';
+    box.innerHTML=h; profBuilt=true;
+  }
+  el('profSrc').textContent=PROF_SRC+(MODE==='sim'?' · симуляция':' · робот');
+  var st=robotState(), cur=profCur();
+  PROFILES.forEach(function(P,i){var b=el('pf'+i); if(!b) return;
+    b.className=i===cur?'cur':''; b.disabled=!st.ok||st.walk;});
+}
+
+// ---------- трюки: панель ----------
+var trkBuilt=false;
+function runTrick(i){
+  var T=TRICKS[i], st=robotState();
+  if(!st.ok){toast(MODE==='sim'?'Симуляция недоступна: нет стенда прошивки':'Нет связи с роботом','bad');return;}
+  if(st.walk||st.ramp||st.arm){toast('Робот ещё движется. Дождись конца или СТОП','warn',[['СТОП',function(){send('x')}]]);return;}
+  if(!st.pose){toast('Трюк начинается из позы','warn',[['Встать (N)',function(){send('n')}]]);return;}
+  if(T.hip&&!hipOkNow()){toast('«'+T.ru+'» двигает хипами — сначала проверь знак хипа','warn',
+     [['Проверка (на подвесе)',function(){send('e hiptest')}],['Знак верный',function(){confirmHip(1)}]]);return;}
+  send('e '+T.name);
+}
+function confirmHip(sg){
+  if(!confirm(sg>0?'Во время «e hiptest» корпус ушёл ВЛЕВО, а стопы (если смотреть сзади) — ВПРАВО?\n\nЭто знак +1. Трюки с хипами откроются до перезагрузки робота.'
+                  :'Стопы ушли ВЛЕВО — значит знак хипа обратный (−1). Открыть трюки с этим знаком?')) return;
+  send('e hip '+(sg>0?'1':'-1'));
+}
+function drawTricks(){
+  if(!trkBuilt){
+    el('trkBox').innerHTML=TRICKS.map(function(T,i){
+      return '<button id="tk'+i+'" onclick="runTrick('+i+')" title="e '+T.name+(T.note?' — '+T.note:'')+'"><b>'+T.ru.toUpperCase()+'</b>'+
+        '<small>'+(T.note||T.name)+'</small><span class="lk" id="tkl'+i+'"></span></button>';}).join('');
+    trkBuilt=true;
+  }
+  el('trkSrc').textContent=TRICK_SRC+(MODE==='sim'?' · симуляция':' · робот');
+  var st=robotState(), cur=trickNow(), hok=hipOkNow();
+  var busyNow=!st.ok||st.walk||st.ramp||st.arm||!st.pose;
+  TRICKS.forEach(function(T,i){
+    var b=el('tk'+i); if(!b) return;
+    var run=cur&&cur.i===i, lock=T.hip&&!hok;
+    b.className=(run?'run ':'')+(lock?'lock':'');
+    b.disabled=busyNow&&!run;
+    var l=lock?'ЗАКРЫТ':T.end_sit?'СИДЯ':''; var le=el('tkl'+i); if(le.textContent!==l) le.textContent=l;
+  });
+  var hb=hok?'<span>знак хипа: <b class="ok">проверен</b></span>'
+    :'<span>знак хипа: <b>не проверен</b> — трюки с хипами закрыты.</span>'+
+     '<button onclick="runTrick(0)">1. Проверка на подвесе</button>'+
+     '<button onclick="confirmHip(1)">2. Стопы ушли вправо → +1</button>'+
+     '<button onclick="confirmHip(-1)">стопы ушли влево → −1</button>';
+  if(el('hipBar')._h!==hb){el('hipBar').innerHTML=hb; el('hipBar')._h=hb;}
+  var pr=0;
+  if(cur){ if(MODE==='sim'&&SIM.trick&&SIM.trick.T) pr=Math.min(1,(SIM.trick.t||0)/SIM.trick.T); else if(cur.n) pr=Math.min(1,(cur.k+1)/cur.n); }
+  el('trkProg').style.width=(pr*100).toFixed(0)+'%';
+}
+
+// ---------- главный апдейт панели ----------
+var tmBuilt=false;
+function dash(){
+  var now=performance.now(), G1=gaitInfo(), s=liveSt, sim=MODE==='sim';
+  // шапка
+  var hs=el('hdStat'), ht=el('hdStatT');
+  if(sim){hs.className='stat sim'; ht.textContent='СИМУЛЯЦИЯ';}
+  else if(liveOk){hs.className='stat ok'; ht.textContent='НА СВЯЗИ';}
+  else {hs.className='stat bad'; ht.textContent='НЕТ СВЯЗИ';}
+  // состояние
+  var R=[];
+  if(sim){
+    R.push([FW.ok?(FW.fw.stale?'warn':'ok'):'bad','Прошивка (trace)',FW.ok?(FW.fw.stale?'УСТАРЕЛ':'OK'):'НЕТ',FW.ok?(FW.fw.stale?'warn':'ok'):'bad']);
+    R.push([SIM.eng?'ok':'','ШИМ',SIM.eng?'ПОДАН':'СНЯТ',SIM.eng?'ok':'dim']);
+    R.push([SIM.pose?'ok':'','Поза',SIM.pose?'ЕСТЬ':'НЕТ',SIM.pose?'ok':'dim']);
+    R.push(['sim','Движок',SIM.p.engine?'ДЕКАРТОВ':'УГЛОВОЙ','']);
+    R.push([MESH.ready?'ok':'warn','Детали STL',MESH.ready?'OK':'НЕТ',MESH.ready?'ok':'warn']);
+    R.push(['','Робот','НЕ ОПРАШИВАЕТСЯ','dim']);
+  } else if(liveOk&&s){
+    R.push(['ok','Связь с роботом','OK','ok']);
+    var wok=s.net===2||s.net===5, rs=s.rssi, rc=rs===undefined||!rs?'':rs>-67?'ok':rs>-75?'warn':'bad';
+    R.push([wok?'ok':'warn','Wi-Fi',!wok?'—':(s.ap?'СВОЯ СЕТЬ':'РОУТЕР')+(rs?' · '+rs+' дБм':''),wok?(rc||'ok'):'warn']);
+    var ls=linkLoss(), lc=ls>0.1?'bad':ls>0.02?'warn':'ok';
+    R.push([lc,'Связь пульта',linkRtt().toFixed(0)+' мс · потери '+(ls*100).toFixed(0)+'%'+(s.rc?' · переподкл. '+s.rc:''),lc]);
+    R.push([s.eng?'ok':'','ШИМ (12 серво)',s.eng?'ПОДАН':'СНЯТ',s.eng?'ok':'dim']);
+    R.push([s.pose?'ok':'','Поза',s.pose?'ЕСТЬ':'НЕТ',s.pose?'ok':'dim']);
+    R.push([s.tab?'ok':'bad','Таблицы пределов',s.tab?'OK':'ОШИБКА',s.tab?'ok':'bad']);
+    R.push([s.hb?'ok':'','Пульт',s.hb?'БРАУЗЕР':'USB','']);
+  } else {
+    R.push(['bad','Связь с роботом','НЕТ','bad']);
+    R.push(['','Адрес',el('robotAddr').value||'—','dim']);
+    R.push([FW.ok?'ok':'','Симуляция',FW.ok?'ДОСТУПНА':'НЕТ',FW.ok?'ok':'dim']);
+  }
+  setRows('stRows',R);
+  // режим
+  var tkn=trickNow();
+  el('mdName').textContent=tkn?'ТРЮК: '+(TRICKS[tkn.i]?TRICKS[tkn.i].ru.toUpperCase():tkn.i):(sim?SIM.mode:(s&&liveOk?s.modeName:'НЕТ СВЯЗИ'));
+  el('mdSub').textContent=sim?'симуляция по прошивке':'живой робот · '+(el('robotAddr').value||'');
+  // походка
+  el('gtName').textContent=GAITS[G1.gi||0][0].toUpperCase();
+  el('gtSub').textContent={0:'диагональные пары, 2 ноги в опоре',1:'борта синфазно',2:'перед и зад — только на весу',3:'по одной ноге, 3 в опоре',4:'ротационный — только на весу'}[G1.gi||0];
+  el('spdV').textContent=G1.vel!==null&&G1.vel!==undefined?G1.vel:'—';
+  el('spdU').textContent=G1.vel!==null&&G1.vel!==undefined?'мм/с заказано (V)':((sim||(s&&s.cart))?'угловой движок: V не задаётся':'V не отправлялся из пульта');
+  el('spdB').style.width=(G1.vel?Math.min(100,G1.vel/200*100):0)+'%';
+  el('gtTiming').textContent=(G1.per?'период '+(+G1.per).toFixed(0)+' мс':'период —')+(G1.duty?' · duty '+(+G1.duty).toFixed(2):'')+' · над полом '+groundSpeed().toFixed(0)+' мм/с';
+  // скорость сустава
+  if(G1.peak!=null&&G1.max){el('rtV').textContent=(+G1.peak).toFixed(0)+' / '+(+G1.max).toFixed(0);
+    var f=G1.peak/G1.max; var b=el('rtB'); b.style.width=Math.min(100,f*100)+'%'; b.className=f>1?'bad':f>0.85?'warn':'';}
+  else {el('rtV').textContent='—'; el('rtB').style.width='0';}
+  // надёжность
+  var RR=[];
+  if(sim){var sm=SIM.sum||{};
+    RR.push([sm.limit_hits?'bad':'ok','Кламп по пределу',sm.limit_hits||0,sm.limit_hits?'bad':'ok']);
+    RR.push([(sm.ik_fail||sm.pose_ik_fail)?'bad':'ok','IK достижимость',(sm.ik_fail||sm.pose_ik_fail)?'ОТКАЗ':'OK',(sm.ik_fail||sm.pose_ik_fail)?'bad':'ok']);
+    RR.push([sm.peak_rate_dps>sm.max_rate_dps?'warn':'ok','Скорость сустава',sm.peak_rate_dps>sm.max_rate_dps?'СРЕЗАНА':'В ПРЕДЕЛЕ',sm.peak_rate_dps>sm.max_rate_dps?'warn':'ok']);
+  } else if(s&&liveOk){
+    RR.push([s.hits?'bad':'ok','Кламп по пределу',s.hits,s.hits?'bad':'ok']);
+    RR.push([s.over?'warn':'ok','Пропущено тиков',s.over,s.over?'warn':'ok']);
+    RR.push(['','Шина PCA9685',s.bus+' мкс (макс '+s.busmax+')','']);
+    RR.push(['','Свободно памяти',(s.heap/1024).toFixed(0)+' КБ','']);
+  } else RR.push(['','Нет данных','—','dim']);
+  var wl=[0,1,2,3].map(legMin), wm=wl.reduce(function(a,b){return b[0]<a[0]?b:a});
+  RR.push([wm[0]<5?'bad':wm[0]<12?'warn':'ok','Наименьший запас',LIM?wm[0].toFixed(1)+'°':'—',wm[0]<5?'bad':wm[0]<12?'warn':'ok']);
+  setRows('relRows',RR);
+  // ориентация
+  var im=imuNow(), ia=imuRaw(), s0=MODE==='live'&&liveOk?liveSt:null;
+  var os=el('oSrc'); os.textContent=im?'IMU':'КИН'; os.className='imutag'+(im?' on':'');
+  var on=im?'По IMU робота ('+im.chip+'): крен + правый борт вниз, тангаж + нос вверх, курс — интеграл гиро, уплывает. <b style="color:var(--warn)">Оси IMU на роботе не проверены.</b>'
+          :'По кинематике: крен и тангаж — по плоскости стоп, курс — по одометрии.'+
+           (MODE!=='live'?'':!s0?'':!s0.imu?' Прошивка не отдаёт IMU — нужна новая (2026-09-28).':!s0.imu.ok?' IMU на роботе не найден.':!OPT.imu?' IMU есть, выключен кнопкой IMU.':'');
+  if(el('oNote')._h!==on){el('oNote').innerHTML=on; el('oNote')._h=on;}
+  var t=tilt(); el('oRoll').textContent=(t.roll>=0?'+':'')+t.roll.toFixed(1)+'°'; el('oPitch').textContent=(t.pitch>=0?'+':'')+t.pitch.toFixed(1)+'°';
+  var yaw=W.yaw/D2R; el('oYaw').textContent=(yaw>=0?'+':'')+yaw.toFixed(1)+'°'; el('oH').textContent=W.z.toFixed(0)+' мм';
+  gauge('gRoll',t.roll,25); gauge('gPitch',t.pitch,25); gauge('gYaw',((yaw+180)%360+360)%360-180,180);
+  // карточки ног
+  el('legCards').innerHTML=ORDER.map(function(i){
+    var m=legMin(i), pc=LIM?Math.max(0,Math.min(100,m[0]/30*100)):0, cls=m[0]<5?'bad':m[0]<12?'warn':'';
+    return '<div class="leg"><div class="t">'+LEGN[i]+'<span class="sp"></span><i class="'+(W.contact[i]?'on':'')+'"></i></div>'+
+      '<div class="bar"><i class="'+cls+'" style="width:'+pc.toFixed(0)+'%;background:'+(cls?'':LEGC[i])+'"></i></div>'+
+      '<div class="n">запас '+(LIM?m[0].toFixed(1)+'° · '+JN[m[1]]:'—')+'</div></div>';
+  }).join('');
+  // телеметрия серво
+  if(!tmBuilt){var h='';for(var i=0;i<12;i++)h+='<tr><td id="tc'+i+'"></td><td>'+(i%3===0?LEGN[i/3|0]:'')+'</td><td>'+JN[i%3]+'</td><td id="ta'+i+'"></td><td id="tu'+i+'" class="us"></td><td id="tw'+i+'" style="color:var(--dim)"></td><td id="tg'+i+'"></td><td class="mini"><div class="bar"><i id="tb'+i+'"></i></div></td><td class="st" id="ts'+i+'"></td></tr>';
+    el('tmBody').innerHTML=h; tmBuilt=true;}
+  el('tmSrc').textContent=sim?'углы из прошивки (trace)':(liveOk?'с робота, 5 Гц':'нет связи');
+  var th=sim?'ШИМ — расчёт как spottyAngleToUsRaw по таблицам spotty_config.h (в симуляции импульса нет). ':(s&&s.us?'ШИМ — с робота, тем же путём, что applyJoint; «выкл» — ШИМ не подан. ':(liveOk?'ШИМ: прошивка его не отдаёт — нужна новая (2026-09-28). ':''));
+  th+='Запас — до жёсткого предела прошивки. Обрезка по пределу = аварийный стоп.';
+  if(el('tmHint')._h!==th){el('tmHint').textContent=th; el('tmHint')._h=th;}
+  for(var i2=0;i2<12;i2++){
+    var ch=(!sim&&s&&s.j)?s.j[i2].ch:(CH?CH[i2]:'—'), a=disp[i2], m2=marginOf(i2,a);
+    el('tc'+i2).textContent=ch; el('ta'+i2).textContent=a.toFixed(1);
+    var us=null, tu=el('tu'+i2);
+    if(sim){ if(PWM&&CH&&SIM.eng){var cc=CH[i2]; us=Math.round(PWM.zero[cc]+PWM.sign[cc]*a*PWM.usPerDeg);} else if(PWM&&CH) us=0; }
+    else if(s&&s.us) us=s.us[i2]|0;
+    tu.textContent=us===null?'—':us?us:'выкл'; tu.className='us'+(us?'':' off');
+    el('tw'+i2).textContent=LIM?LIM[i2][0].toFixed(0)+'…'+LIM[i2][1].toFixed(0):'—';
+    el('tg'+i2).textContent=LIM?m2.toFixed(1):'—';
+    var fr=LIM?(a-LIM[i2][0])/(LIM[i2][1]-LIM[i2][0]):0, bi=el('tb'+i2);
+    bi.style.left=Math.max(0,Math.min(96,fr*100-2))+'%'; bi.style.width='4%';
+    var stt=!LIM?['—','']:m2<5?['ПРЕДЕЛ','bad']:m2<12?['БЛИЗКО','warn']:['OK','ok'];
+    var ts=el('ts'+i2); ts.textContent=stt[0]; ts.className='st '+stt[1]; bi.className=stt[1]==='ok'?'':stt[1];
+  }
+  // кинематика
+  var gs=groundSpeed(), sgn=function(v){return (v>=0?'+':'')+(+v).toFixed(1)+'°'}, tk=tiltK();
+  var KR=[
+    [im?'sim':'ok','Крен ('+(im?'IMU':'по опоре')+')',sgn(t.roll),''],
+    [im?'sim':'ok','Тангаж ('+(im?'IMU':'по опоре')+')',sgn(t.pitch),''],
+    [im?'sim':'ok','Курс ('+(im?'гиро':'одометрия')+')',(yaw>=0?'+':'')+yaw.toFixed(1)+'°','']];
+  if(ia){var am=Math.hypot(ia.a[0],ia.a[1],ia.a[2]);
+    KR.push(['','По опоре: крен / тангаж',sgn(tk.roll)+' / '+sgn(tk.pitch),'dim']);
+    KR.push([Math.abs(am-1)>0.3?'warn':'','IMU |a|',am.toFixed(2)+' g',Math.abs(am-1)>0.3?'warn':'']);}
+  setRows('kinRows',KR.concat([
+    ['ok','Скорость над полом',gs.toFixed(0)+' мм/с',''],
+    ['ok','Пройдено',(trailLen()/10).toFixed(0)+' см',''],
+    ['ok','Высота корпуса',W.z.toFixed(0)+' мм','']]));
+  var sp=[]; for(var k=1;k<HIST.length;k++){var d=(HIST[k].t-HIST[k-1].t)/1000; sp.push(d>0?Math.hypot(HIST[k].x-HIST[k-1].x,HIST[k].y-HIST[k-1].y)/d:0);}
+  spark('cSpeed',sp,0,Math.max(80,Math.max.apply(null,sp.concat([0]))),'rgb(180,242,58)');
+  // опора и производительность
+  var si=supportInfo(LAST_S);
+  setRows('supRows',[
+    [si&&si.n>=3?'ok':si&&si.n===2?'warn':'','В опоре',(si?si.n:0)+' из 4',''],
+    [si&&si.m!==null?(si.m>=0?'ok':'warn'):'',si&&si.line?'Откл. от диаг.':'Запас',si&&si.m!==null?(si.line?Math.abs(si.m).toFixed(0):si.m.toFixed(0))+' мм':'—',si&&si.m!==null&&si.m<0&&!si.line?'warn':''],
+    ['','FPS',FPS.toFixed(0),''],
+    ['',sim?'Источник':'Опрос',sim?'trace':(liveOk?RTT.toFixed(0)+' мс':'—'),'']]);
+  spark('cMargin',HIST.map(function(r){return r.marg===null?0:r.marg}),-40,80,'rgb(94,234,212)',0);
+  // прошивка
+  var F=[];
+  if(sim){var sm2=SIM.sum;
+    el('fwSrc').textContent=FW.ok?(FW.fw.stale?'trace устарел':'trace, собран '+(FW.fw.binary_date||'')):'стенда нет';
+    if(sm2){F.push(['ok','Период',(+sm2.cycle_ms).toFixed(0)+' мс','']); F.push(['ok','Duty',(+sm2.duty).toFixed(3),'']);
+      F.push([sm2.peak_rate_dps>sm2.max_rate_dps?'warn':'ok','Пик скорости',(+sm2.peak_rate_dps).toFixed(0)+' °/с','']);
+      F.push(['ok','Высота H / шаг P',SIM.p.height+' / '+SIM.p.span+' мм','']);
+      F.push([sm2.geom_mm.base_long_measured?'ok':'warn','Продольная база',(+sm2.geom_mm.base_long).toFixed(0)+' мм '+(sm2.geom_mm.base_long_measured?'(замер)':'(принято)'),'']);
+      F.push(['','Звенья',G.femur.toFixed(1)+' / '+G.tibia.toFixed(1)+' мм','dim']);}
+    else F.push(['','Нет сводки','нажми p','dim']);
+  } else if(s&&liveOk){
+    el('fwSrc').textContent='с робота';
+    F.push(['ok','Период / duty',(+s.per).toFixed(0)+' мс / '+(+s.duty).toFixed(2),'']);
+    F.push(['ok','Размах / подъём',(+s.amp).toFixed(1)+'° / '+(+s.knee).toFixed(1)+'°','']);
+    F.push(['ok','Присед / трим',(+s.crouch).toFixed(0)+'° / '+(s.trim>=0?'+':'')+(+s.trim).toFixed(1)+'°','']);
+    F.push(['ok','Траектория',(s.flat?'плоская':'дуга')+' · '+(s.smooth?'сглаж.':'линейн.'),'']);
+    F.push([Math.abs(s.link-1)<1e-6?'warn':'ok','Звенья k',(+s.link).toFixed(2),'']);
+    if(s.cart){var c=s.cart;
+      F.push([c.eng?'ok':'','Движок',c.eng?'ДЕКАРТОВ':'УГЛОВОЙ',c.eng?'ok':'']);
+      if(c.eng){
+        F.push(['ok','Высота H / полушаг P',c.H+' / '+c.P+' мм','']);
+        F.push(['ok','Подъём C / продав A',c.C+' / '+c.A+' мм','']);
+        F.push(['ok','Скорость V / перенос W',c.V+' мм/с / '+c.W+' мс','']);
+        F.push(['ok','Направление D',c.D+'°','']);
+        F.push(['','Сдвиг X / Y · крен R',c.X+' / '+c.Y+' мм · '+c.R+'°','']);
+        F.push(['','Перенос B · тангаж · рыск.',c.B+' · '+c.pitch+'° · '+c.yaw+'°','']);
+      }
+    }
+    if(s.imu) F.push([s.imu.ok?'ok':'','IMU',s.imu.ok?s.imu.chip+(s.imu.stop?' · стоп '+s.imu.stop+'°':' · стоп выкл'):'НЕ НАЙДЕН',s.imu.ok?'':'dim']);
+    F.push(['','Аптайм',(s.ms/1000).toFixed(0)+' с','dim']);
+  } else {el('fwSrc').textContent='—'; F.push(['','Нет данных','—','dim']);}
+  setRows('fwRows',F);
+  // графики, контакты, фаза, траектории
+  drawContact(); drawPhase(G1); drawTraj(); drawGraph();
+  var lg=legendHTML(); if(el('grLegend')._h!==lg){el('grLegend').innerHTML=lg; el('grLegend')._h=lg;}
+  syncQP(); updateCtl(); drawGaits(); drawTricks(); drawProfiles(); if(VIS.on) visUpdate();
+}
+function drawGizmo(g){
+  var o=[VW-42,40], ax=[[1,0,0,'X','#ff6b5a'],[0,1,0,'Y','#b4f23a'],[0,0,1,'Z','#7cc4ff']];
+  g.font='600 10px '+getComputedStyle(document.body).fontFamily;
+  ax.forEach(function(a){var v=[a[0],a[1],a[2]], sx=dot(v,camR), sy=-dot(v,camU);
+    g.strokeStyle=a[4]; g.lineWidth=2; g.beginPath(); g.moveTo(o[0],o[1]); g.lineTo(o[0]+sx*24,o[1]+sy*24); g.stroke();
+    g.fillStyle=a[4]; g.fillText(a[3],o[0]+sx*30-3,o[1]+sy*30+4);});
+}
+
+/* ==========================================================================
+ * УПРАВЛЕНИЕ. Цель — чтобы оператору не нужно было помнить буквы прошивки
+ * и порядок «n, потом w»:
+ *   • одна главная кнопка, которая всегда предлагает СЛЕДУЮЩИЙ шаг
+ *     (встать → идти → стоп) и шкала ШИМ · ПОЗА · ХОД;
+ *   • крестовина: нажал — N циклов, держишь — идёт, отпустил — стоп и в позу;
+ *   • пульт сам проверяет условия ДО отправки и говорит, чего не хватает,
+ *     с кнопкой-исправлением; отказы прошивки тоже всплывают подсказками;
+ *   • шлёт только изменившиеся параметры (не «D 0 · u 0» каждый раз);
+ *   • палитра команд (/ или Ctrl+K): человеческие названия + сырые строки.
+ * Строки, уходящие в робота, — те же, что с клавиатуры; обхода проверок
+ * прошивки нет и быть не может.
+ * ========================================================================== */
+var CYC=2;
+var MOVES={fw:[0,0,'вперёд'],bk:[180,0,'назад'],cl:[90,0,'краб влево'],cr:[-90,0,'краб вправо'],
+           tl:[0,1,'разворот влево'],tr:[0,-1,'разворот вправо']};
+var SENT_KEYS={G:'engine',D:'crab',V:'vel',W:'swing',P:'span',C:'lift',H:'height',A:'penet',X:'shiftx',Y:'shifty',R:'roll',B:'shiftgain',b:'trim',m:'maxrate'};
+var lastRefusal=0;
+
+// ---------- единый взгляд на робота (живой или симуляция) ----------
+function robotState(){
+  if(MODE==='sim') return {ok:FW.ok, eng:SIM.eng, pose:SIM.pose, walk:SIM.mode==='ХОД', arm:SIM.mode==='ВЗВОД',
+                           ramp:SIM.mode==='РАМПА'||SIM.mode==='ТРЮК', trick:!!SIM.trick, engine:SIM.p.engine, D:SIM.p.crab, u:SIM.p.turn, cyc:SIM.cyc};
+  var s=liveSt; if(!liveOk||!s) return {ok:false};
+  return {ok:true, eng:!!s.eng, pose:!!s.pose, walk:s.mode===3, arm:s.mode===1, ramp:s.mode===2, trick:s.trick>=0,
+          engine:liveVal('engine'), D:liveVal('crab'), u:s.turn, cyc:s.cyc};
+}
+function noteSent(line){                      // ЖИВОЙ: помним, что отправили (робот это не отдаёт)
+  var m=/^([A-Za-z])\s+(-?[\d.]+)\s*$/.exec(line); if(!m) return;
+  var k=SENT_KEYS[m[1]]; if(k) SENT[k]=+m[2];
+}
+
+// ---------- всплывающие подсказки ----------
+function toast(text,kind,actions,ms){
+  var box=el('toasts');
+  for(var i=0;i<box.children.length;i++) if(box.children[i]._t===text){box.children[i]._born=performance.now();return;}
+  var d=document.createElement('div'); d.className='toast '+(kind||'info'); d._t=text; d._born=performance.now();
+  var h='<div class="tt">'+text+'</div>';
+  if(actions&&actions.length) h+='<div class="ta">'+actions.map(function(a,i){return '<button data-i="'+i+'">'+a[0]+'</button>'}).join('')+'</div>';
+  h+='<button class="tx" title="закрыть">×</button>';
+  d.innerHTML=h;
+  d.querySelector('.tx').onclick=function(){d.remove()};
+  (actions||[]).forEach(function(a,i){d.querySelector('[data-i="'+i+'"]').onclick=function(){d.remove(); a[1]();}});
+  box.appendChild(d);
+  var life=ms||(kind==='bad'?9000:kind==='warn'?7000:3500);
+  (function tick(){ if(!d.parentNode) return; if(performance.now()-d._born>life){d.classList.add('out'); setTimeout(function(){d.remove()},250);} else setTimeout(tick,300); })();
+  while(box.children.length>4) box.firstChild.remove();
+}
+// отказы прошивки -> подсказка с кнопкой-исправлением
+var REFUSALS=[
+  [/Сначала 'n'/,           function(){return ['Робот не в позе','warn',[['Встать (N)',function(){send('n')}]]]}],
+  [/Идёт походка\. Сначала 'x'/, function(){return ['Идёт ход — параметры и новый пуск только после СТОП','warn',[['СТОП',function(){send('x')}]]]}],
+  [/параметр ДЕКАРТОВА движка/, function(){return ['Этот параметр есть только в декартовом движке','warn',[['Включить G 1',function(){send('G 1')}]]]}],
+  [/трюк двигает хипами/, function(){return ['Трюк двигает хипами: сначала проверь знак хипа на подвесе','warn',
+      [['Проверка (e hiptest)',function(){send('e hiptest')}],['Знак верный (+1)',function(){confirmHip(1)}]]]}],
+  [/трюк начинается из позы/, function(){return ['Трюк начинается из позы','warn',[['Встать (N)',function(){send('n')}]]]}],
+  [/Заблокировано: ?(.*)/,   function(m){return ['Заблокировано: '+m[1],'bad']}],
+  [/АВАРИЙНЫЙ СТОП:? ?(.*)/, function(m){return ['АВАРИЙНЫЙ СТОП: '+m[1],'bad',[['Встать заново (N)',function(){send('n')}]]]}],
+  [/ОТКАЗ:? ?(.*)/,          function(m){return ['Отказ: '+(m[1]||'предполётная проверка'),'bad']}],
+  [/Поза изменилась/,        function(){return ['Поза изменилась — робот стоит в прежней','info',[['Перейти в новую (N)',function(){send('n')}]]]}],
+  [/кламп по жёсткому пределу (\d+)/, function(m){return ['Траектория упрётся в предел сустава ('+m[1]+' раз) — прошивка откажет','warn']}],
+  [/\[!!?\] ?(.*)/,           function(m){return [m[1],'warn']}],
+  [/ШИМ не подан/,           function(){return ['ШИМ не подан — робот и так мягкий','info']}],
+  [/отсчёт отменён|Любая команда — отмена/, null],
+];
+function scanForRefusals(txt){
+  txt.split('\n').forEach(function(line){
+    for(var i=0;i<REFUSALS.length;i++){
+      var m=REFUSALS[i][0].exec(line); if(!m) continue;
+      if(REFUSALS[i][1]){var r=REFUSALS[i][1](m); toast(r[0],r[1],r[2]); lastRefusal=performance.now();}
+      break;
+    }
+  });
+}
+
+// ---------- движение ----------
+function runSeq(seq,label){
+  if(label) toast('▶ '+label+'<span class="tc">'+seq.join(' · ')+'</span>','info',null,2500);
+  var p=Promise.resolve();
+  seq.forEach(function(l){p=p.then(function(){return send(l)})});
+  return p;
+}
+function go(k,hold,nc){
+  var st=robotState(), m=MOVES[k];
+  if(!st.ok){toast(MODE==='sim'?'Симуляция недоступна: нет стенда прошивки':'Нет связи с роботом','bad');return null;}
+  if(st.arm){toast('Идёт отсчёт взвода — дождись позы','warn');return null;}
+  if(st.walk||st.ramp){toast('Робот ещё движется. Дождись конца или СТОП','warn',[['СТОП',function(){send('x')}]]);return null;}
+  if(!st.pose){toast('Робот не стоит в позе','warn',[['Встать (N)',function(){send('n')}]]);return null;}
+  var needD=m[0]!==0||(st.D!==undefined&&st.D!==0);
+  if(needD&&st.engine===0){toast('«'+m[2]+'» есть только в декартовом движке','warn',[['Включить G 1',function(){send('G 1')}]]);return null;}
+  var seq=[];
+  if(needD&&st.D!==m[0]) seq.push('D '+m[0]);
+  if(st.u!==m[1]) seq.push('u '+m[1]);
+  // держать: в симуляции trace считает 20 циклов вперёд (38 с), на роботе — 99; отпустил — СТОП
+  var n=hold?(MODE==='sim'?20:99):(nc||CYC); if(st.cyc!==n) seq.push('c '+n);
+  seq.push('w');
+  return runSeq(seq,m[2]+(hold?' — пока держишь':' · '+n+' ц.'));
+}
+function move(k){return go(k,false)}                 // для совместимости со старыми вызовами
+
+// нажал — N циклов; держишь дольше 0.3 с — идёт, пока держишь
+var HOLD={k:null,timer:null,active:false,fired:false,p:null};
+function padDown(k){
+  if(HOLD.k) return;
+  HOLD.k=k; HOLD.active=false; HOLD.fired=false; HOLD.p=null; markPad(k,true);
+  HOLD.timer=setTimeout(function(){HOLD.fired=true; HOLD.p=go(k,true); HOLD.active=!!HOLD.p; if(HOLD.active) markPad(k,'hold');},300);
+}
+function padUp(k){
+  if(!HOLD.k||(k&&k!==HOLD.k)) return;
+  var kk=HOLD.k; clearTimeout(HOLD.timer); markPad(kk,false); HOLD.k=null;
+  if(HOLD.active){
+    HOLD.p.then(function(){return send('x')}).then(function(){setTimeout(function(){send('n')},250)});
+    toast('Отпустил — стоп и плавно в позу','info',null,2200);
+  } else if(!HOLD.fired) go(kk,false);
+}
+function markPad(k,on){
+  document.querySelectorAll('[data-mv="'+k+'"]').forEach(function(b){b.classList.toggle('down',!!on); b.classList.toggle('hold',on==='hold');});
+}
+function bindPad(){
+  document.querySelectorAll('[data-mv]').forEach(function(b){
+    var k=b.getAttribute('data-mv');
+    b.addEventListener('pointerdown',function(e){e.preventDefault(); b.setPointerCapture(e.pointerId); padDown(k);});
+    b.addEventListener('pointerup',function(){padUp(k)});
+    b.addEventListener('pointercancel',function(){padUp(k)});
+    b.addEventListener('lostpointercapture',function(){padUp(k)});
+  });
+}
+function setCyc(n){CYC=n; document.querySelectorAll('.cyc button').forEach(function(b){b.className=(+b.textContent===n)?'on':''});}
+
+// ---------- главная кнопка и шкала ----------
+function primAction(st){
+  if(!st.ok) return {t:'НЕТ СВЯЗИ',h:MODE==='sim'?'стенд прошивки недоступен':'проверь Wi-Fi и адрес робота (вкладка 02)',dis:1};
+  if(st.arm) return {t:'ОТМЕНИТЬ ВЗВОД',h:'идёт отсчёт до первой подачи ШИМ',cls:'warn',fn:function(){send('x')}};
+  if(st.walk) return {t:'СТОП',h:'робот идёт — стоп замораживает положение',cls:'stopc',fn:function(){send('x')}};
+  if(st.ramp) return {t:'СТОП',h:'плавный выход в позу',cls:'stopc',fn:function(){send('x')}};
+  if(!st.eng) return {t:'ВСТАТЬ',h:'5 с отсчёт, затем ШИМ и плавный подъём. Руки убрать',fn:function(){send('n')}};
+  if(!st.pose) return {t:'ВСТАТЬ В ПОЗУ',h:'ШИМ подан — плавно в позу 100 °/с',fn:function(){send('n')}};
+  return {t:'ИДТИ ВПЕРЁД ×'+CYC,h:'или крестовина / стрелки; держать — идти непрерывно',fn:function(){go('fw',false)}};
+}
+function primary(){var a=primAction(robotState()); if(a.fn) a.fn();}
+function updateCtl(){
+  var st=robotState(), a=primAction(st), b=el('primBtn');
+  if(b._t!==a.t+a.cls+a.dis){b.textContent=a.t; b.className='primary '+(a.cls||''); b.disabled=!!a.dis; b._t=a.t+a.cls+a.dis;}
+  el('primHint').textContent=a.h;
+  var S=[['ШИМ',st.eng],['ПОЗА',st.pose],['ХОД',st.walk]], cur=-1;
+  for(var i=0;i<3;i++) if(!S[i][1]){cur=i;break;}
+  var h=S.map(function(s,i){return '<span class="st '+(s[1]?'done':i===cur?'cur':'')+'"><i></i>'+s[0]+'</span>'}).join('<span class="ln"></span>');
+  if(el('steps')._h!==h){el('steps').innerHTML=h; el('steps')._h=h;}
+  var lock=!st.ok||st.walk||st.arm||st.ramp||!st.pose;
+  document.querySelectorAll('[data-mv]').forEach(function(x){x.classList.toggle('dim',lock&&!x.classList.contains('down'))});
+  // параметры нельзя менять на ходу — так и показать
+  el('qaUp').disabled=!st.ok||st.walk||st.arm;
+  el('qaDown').disabled=!st.ok||!st.eng||st.walk||st.arm;
+  el('qaRel').disabled=!st.ok;
+  el('qaUp').title=!st.eng?'взвод: 5 с отсчёт, затем ШИМ и подъём (N)':'плавно в позу (N)';
+  var pl=st.walk; el('prmLock').style.display=pl?'':'none';
+  document.querySelectorAll('#prmQuick input,#prmQuick button').forEach(function(x){x.disabled=pl});
+}
+
+// ---------- палитра команд ----------
+var CMD_DOC={p:'предполётная проверка',n:'взвод и поза',l:'лечь',w:'пуск N циклов',x:'СТОП',r:'снять ШИМ',s:'показать параметры',h:'справка прошивки',
+  g:'походка <0..4 | имя>',c:'циклов для w <1..99>',u:'разворот <-1 | 0 | 1>',G:'движок: 0 угловой, 1 декартов',H:'высота, мм',P:'полушаг, мм',
+  C:'подъём стопы, мм',A:'продав опоры, мм',V:'скорость корпуса, мм/с',W:'время переноса, мс',D:'направление, ° (0 вперёд, +90 влево)',
+  X:'сдвиг корпуса вперёд, мм',Y:'сдвиг влево, мм',R:'крен, °',B:'перенос по фазе 0..1.5',E:'тангаж, °',J:'рыскание, °',b:'трим, °',
+  m:'ограничитель скорости, °/с',f:'траектория: 0 дуга, 1 плоская',S:'перенос: 0 линейный, 1 сглаженный',t:'размах бедра, °',k:'подъём колена, °',
+  d:'duty',T:'период, мс',e:'трюк: sit paw wave bow stretch pushup dance wiggle look · e hip 1',M:'профиль ходьбы: norm steady crawl lowfast lowknee high tiptoe stride mince march stomp prance pace slowmo …',q:'присед, °',a:'размах хипа, °',L:'звенья k',z:'РАЗГОН — только на подвесе',i:'imu …',o:'osc …'};
+var ACTS=[
+  ['Встать / в позу','n','N'],['Идти вперёд','@fw','↑'],['Идти назад','@bk','↓'],['Разворот влево','@tl','Q'],['Разворот вправо','@tr','E'],
+  ['Краб влево','@cl','Shift+←'],['Краб вправо','@cr','Shift+→'],['СТОП','x','Пробел'],['Лечь','l','L'],['Снять ШИМ','@rel',''],
+  ['Предполётная проверка','p','P'],['Показать параметры','s',''],['Справка прошивки','h',''],
+  ['Походка trot','g 0',''],['Походка pace','g 1',''],['Походка walk','g 3',''],['Походка bound — только на весу','@g2',''],['Походка gallop — только на весу','@g4',''],
+  ['Декартов движок','G 1',''],['Угловой движок','G 0',''],
+  ['Вид: детали / чертёж','@view','V'],['Режим показа','@show','F'],['Камера в центр','@center',''],['Горячие клавиши','@help','?'],
+  ['Вкладка параметры','@tab2',''],['Вкладка суставы','@tab3',''],
+  ['Трюк: сесть','e sit',''],['Трюк: дать лапу','e paw',''],['Трюк: помахать','e wave',''],['Трюк: поклон','e bow',''],
+  ['Трюк: потянуться','e stretch',''],['Трюк: отжимания','e pushup',''],['Трюк: танец','e dance',''],['Трюк: вилять','e wiggle',''],
+  ['Трюк: оглядеться','e look',''],['Проверка знака хипа (на подвесе)','e hiptest',''],['Список трюков','e',''],
+  ['Профиль: обычный','M norm',''],['Профиль: устойчивый','M steady',''],['Профиль: крадущийся','M crawl',''],
+  ['Профиль: низко и быстро','M lowfast',''],['Профиль: низко, колени вверх','M lowknee',''],['Профиль: парадный шаг','M march',''],
+  ['Профиль: гарцевать','M prance',''],['Список профилей','M',''],
+  ['Режим посетителя','@vis','Ctrl+Shift+U'],['Поза по IMU / по кинематике','@imu','I']];
+var PAL={sel:0,items:[]}, RAWHIST=[];
+function openPal(){el('pal').classList.add('on'); var i=el('palIn'); i.value=''; palFilter(); setTimeout(function(){i.focus()},10);}
+function closePal(){el('pal').classList.remove('on'); el('palIn').blur();}
+function palFilter(){
+  var q=el('palIn').value.trim(), ql=q.toLowerCase(), items=[];
+  var raw=/^([A-Za-z])(\s.*)?$/.exec(q);
+  if(raw&&CMD_DOC[raw[1]]!==undefined) items.push({n:'Отправить «'+q+'»',d:CMD_DOC[raw[1]],run:q,raw:1});
+  if(!q) RAWHIST.slice(-5).reverse().forEach(function(r){items.push({n:r,d:'недавняя команда',run:r,raw:1})});
+  ACTS.forEach(function(a){ if(!q||a[0].toLowerCase().indexOf(ql)>=0||a[1].toLowerCase()===ql) items.push({n:a[0],d:a[1].charAt(0)==='@'?'':a[1],k:a[2],run:a[1]}); });
+  PAL.items=items.slice(0,12); PAL.sel=0; palDraw();
+}
+function palDraw(){
+  el('palList').innerHTML=PAL.items.length?PAL.items.map(function(it,i){
+    return '<div class="pi'+(i===PAL.sel?' sel':'')+'" data-i="'+i+'"><span>'+it.n+'</span><small>'+(it.d||'')+'</small>'+(it.k?'<kbd>'+it.k+'</kbd>':'')+'</div>';
+  }).join(''):'<div class="pi"><span>Нет такой команды</span><small>буква прошивки + число, например «H 180»</small></div>';
+  el('palList').querySelectorAll('[data-i]').forEach(function(d){d.onclick=function(){PAL.sel=+d.getAttribute('data-i'); palRun();}});
+}
+function palRun(){
+  var it=PAL.items[PAL.sel]; if(!it) return; closePal();
+  runAction(it.run);
+  if(it.raw&&RAWHIST[RAWHIST.length-1]!==it.run){RAWHIST.push(it.run); if(RAWHIST.length>20) RAWHIST.shift();}
+}
+function runAction(c){
+  if(c.charAt(0)!=='@'){
+    if(/^z\b/.test(c)){ if(!confirm('Режим разгона ищет предел скорости железа.\nТолько на ПОДВЕСЕ. Продолжить?')) return; }
+    if(/^r\b/.test(c)){ rel(); return; }
+    send(c); return;
+  }
+  var a=c.slice(1);
+  if(MOVES[a]) go(a,false);
+  else if(a==='rel') rel();
+  else if(a==='g2'||a==='g4') pickGait(+a.slice(1),true);
+  else if(a==='view') setView(VIEW==='real'?'blue':'real');
+  else if(a==='show') setShow(!SHOW);
+  else if(a==='center') resetWorld();
+  else if(a==='help') toggleHelp();
+  else if(a==='tab2') tab(2); else if(a==='tab3') tab(3);
+  else if(a==='vis') setVisitor(!VIS.on); else if(a==='imu') toggleImu();
+}
+function pickGait(i,force){
+  var st=robotState();
+  if(st.walk){toast('Походку меняют на стоящем роботе','warn',[['СТОП',function(){send('x')}]]);return;}
+  if(GAITS[i][2]&&!force){toast(GAITS[i][0]+' — только на весу: нет одновременной опоры на перед и зад','warn',[['Выбрать всё равно',function(){send('g '+i)}]]);return;}
+  send('g '+i);
+}
+function toggleHelp(){el('keys').classList.toggle('on');}
+
+/* ---------- РЕЖИМ ПОСЕТИТЕЛЯ ----------------------------------------------
+ * Логика как у Выставка/пульт_выставка.py: у посетителя только готовые
+ * движения, никаких параметров, взвода с нуля и снятия ШИМ. Взводит оператор
+ * (N), пока ШИМ не подан — кнопки спят. После каждого показа — пауза, чтобы
+ * серво остыли. Разворот ('u') выключен, пока оператор не поставит галочку:
+ * на железе он ещё не проверен. СТОП есть всегда. Выход — держать 2 с кнопку
+ * в углу или Ctrl+Shift+U. */
+var VIS={on:false,turnOn:false,busyUntil:0,last:null,count:0,note:'',noteT:0,exitT:null,exitA:0};
+var VIS_ACT={
+  walk: {cool:20,  run:function(){return go('fw',false,3)}},
+  turn: {cool:25,  run:function(){return go('tl',false,2)}},
+  stand:{cool:8,   run:function(){return send('n')}},
+  lie:  {cool:8,   run:function(){return send('l')}},
+  bow:  {cool:15,  run:function(){return send('e bow')}},
+  paw:  {cool:25,  run:function(){return send('e paw')}}};
+function visWhy(k,st){
+  if(!st.ok) return 'нет связи';
+  if(!st.eng||st.arm) return 'робот отдыхает';
+  if(st.walk||st.ramp) return 'робот двигается';
+  if(k==='turn'&&!VIS.turnOn) return 'выключено';
+  if(k==='paw'&&!hipOkNow()) return 'не проверено оператором';
+  if((k==='walk'||k==='turn'||k==='lie'||k==='bow'||k==='paw')&&!st.pose) return 'сначала ВСТАТЬ';
+  if(k==='stand'&&st.pose) return 'уже стоит';
+  return '';
+}
+function visRun(k){
+  var st=robotState(), why=visWhy(k,st), now=performance.now();
+  if(why||now<VIS.busyUntil) return;
+  VIS.busyUntil=now+VIS_ACT[k].cool*1000; VIS.last=k; VIS.count++;
+  addLine('[посетитель] '+{walk:'пройти',turn:'развернуться',stand:'встать',lie:'лечь',bow:'поклон',paw:'дать лапу'}[k]);
+  VIS_ACT[k].run();
+}
+function visStop(){ send('x'); VIS.note='Остановлено.'; VIS.noteT=performance.now(); }
+function setVisitor(on){
+  VIS.on=!!on; if(on){ if(SHOW) setShow(false); tab(1); closePal(); el('keys').classList.remove('on'); if(HOLD.k) padUp(HOLD.k); OPT.follow=true; el('tFollow').className='on'; }
+  document.body.classList.toggle('visitor',VIS.on);
+  addLine(on?'[пульт] режим посетителя: только готовые движения, взвод и ШИМ — у оператора':'[пульт] режим посетителя выключен');
+  if(on&&!robotState().eng) toast('Кнопки посетителя оживут, когда робот взведён (N)','info');
+  setTimeout(resize,40); if(on) visUpdate();
+}
+function visUpdate(){
+  var st=robotState(), now=performance.now(), left=Math.max(0,(VIS.busyUntil-now)/1000);
+  ['walk','turn','stand','lie','bow','paw'].forEach(function(k){
+    var id={walk:'Walk',turn:'Turn',stand:'Stand',lie:'Lie',bow:'Bow',paw:'Paw'}[k], b=el('vb'+id), why=visWhy(k,st);
+    b.disabled=!!why||left>0;
+    var sm=b.querySelector('small'), base={walk:'несколько шагов вперёд',turn:'поворот на месте',stand:'подняться из позы лёжа',lie:'плавно опуститься',bow:'поздороваться',paw:'сесть и дать лапу'}[k];
+    var txt=why&&why!=='робот двигается'&&why!=='нет связи'&&why!=='робот отдыхает'?why:base;
+    if(sm.textContent!==txt) sm.textContent=txt;
+    var pr=el('vp'+id), cool=VIS_ACT[k].cool;
+    pr.style.width=(VIS.last===k&&left>0?(left/cool*100):0)+'%';
+  });
+  var m;
+  if(!st.ok) m='Робот сейчас не на связи. Позовите, пожалуйста, оператора.';
+  else if(!st.eng||st.arm) m=st.arm?'Робот просыпается…':'Робот отдыхает. Оператор скоро его включит.';
+  else if(st.walk) m='Робот идёт… Кнопка СТОП остановит его сразу.';
+  else if(st.trick) m='Робот показывает трюк…';
+  else if(st.ramp) m='Робот меняет позу…';
+  else if(VIS.note&&now-VIS.noteT<3000) m=VIS.note;
+  else if(left>0) m='Сервоприводы отдыхают: ещё '+Math.ceil(left)+' с.';
+  else m='Нажмите кнопку — робот выполнит одно движение.';
+  var h='<b>SPOTTY «РЕБУТ»'+(MODE==='sim'?' · СИМУЛЯЦИЯ':'')+'</b>'+m+(VIS.count?'<div style="color:var(--dim2);font-size:12px;margin-top:6px">показов за сессию: '+VIS.count+'</div>':'');
+  var e=el('visMsg'); if(e._h!==h){e.innerHTML=h; e._h=h;}
+}
+function bindVisExit(){
+  var b=el('visExit'), bar=el('visExitP');
+  function stop(){ if(VIS.exitT){clearInterval(VIS.exitT); VIS.exitT=null;} bar.style.width='0'; }
+  b.addEventListener('pointerdown',function(e){ e.preventDefault(); b.setPointerCapture(e.pointerId); stop(); var t0=performance.now();
+    VIS.exitT=setInterval(function(){var f=(performance.now()-t0)/2000; bar.style.width=Math.min(100,f*100)+'%'; if(f>=1){stop(); setVisitor(false);}},50); });
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(ev){b.addEventListener(ev,stop)});
+}
+
+// ---------- клавиатура ----------
+var KEYMV={ArrowUp:'fw',ArrowDown:'bk'};
+var HOLD_CODE=null;
+function keyMove(e){
+  var kl=(e.key||'').toLowerCase();
+  if(kl==='w'||kl==='ц') return 'fw';
+  if(kl==='s'||kl==='ы') return 'bk';
+  if(kl==='a'||kl==='ф') return e.shiftKey?'cl':'tl';
+  if(kl==='d'||kl==='в') return e.shiftKey?'cr':'tr';
+  if(e.key==='ArrowLeft') return e.shiftKey?'cl':'tl';
+  if(e.key==='ArrowRight') return e.shiftKey?'cr':'tr';
+  if(e.key==='q'||e.key==='Q'||e.key==='й') return 'tl';
+  if(e.key==='e'||e.key==='E'||e.key==='у') return 'tr';
+  return KEYMV[e.key];
+}
+document.addEventListener('keydown',function(e){
+  if(el('pal').classList.contains('on')){
+    if(e.key==='Escape'){closePal();e.preventDefault();}
+    else if(e.key==='ArrowDown'){PAL.sel=Math.min(PAL.items.length-1,PAL.sel+1);palDraw();e.preventDefault();}
+    else if(e.key==='ArrowUp'){PAL.sel=Math.max(0,PAL.sel-1);palDraw();e.preventDefault();}
+    else if(e.key==='Enter'){palRun();e.preventDefault();}
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.code==='KeyU'){e.preventDefault();setVisitor(!VIS.on);return;}
+  if(VIS.on){                       // посетителю — только СТОП
+    if(e.key===' '||e.key==='Escape'||e.key==='x'||e.key==='ч'){e.preventDefault(); visStop();}
+    return;
+  }
+  if((e.ctrlKey||e.metaKey)&&(e.key==='k'||e.key==='л')){e.preventDefault();openPal();return;}
+  if(e.target.tagName==='INPUT') return;
+  if(e.key===' '||e.key==='Escape'||e.key==='x'||e.key==='ч'){e.preventDefault();
+    if(e.key==='Escape'){ if(SHOW) setShow(false); el('keys').classList.remove('on'); }
+    send('x'); return;}
+  if(e.repeat) return;
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  var k=keyMove(e); if(k){e.preventDefault(); if(!HOLD.k) HOLD_CODE=e.code; padDown(k); return;}
+  if(e.key==='i'||e.key==='I'||e.key==='ш'){toggleImu();return;}
+  if(e.key==='/'||e.key==='.'){e.preventDefault();openPal();return;}
+  if(e.key==='?'||e.key===','){toggleHelp();return;}
+  if(e.key==='n'||e.key==='т'){send('n');return;}
+  if(e.key==='l'||e.key==='д'){send('l');return;}
+  if(e.key==='p'||e.key==='з'){send('p');return;}
+  if(e.key==='f'||e.key==='а'){setShow(!SHOW);return;}
+  if(e.key==='v'||e.key==='м'){setView(VIEW==='real'?'blue':'real');return;}
+  if(/^[1-9]$/.test(e.key)){setCyc(+e.key);toast('Циклов за нажатие: '+e.key,'info',null,1500);return;}
+});
+document.addEventListener('keyup',function(e){
+  if(HOLD.k&&e.code===HOLD_CODE){HOLD_CODE=null; padUp(HOLD.k); return;}   // Shift отпустили раньше — всё равно та же клавиша
+  var k=keyMove(e); if(k) padUp(k);});
+window.addEventListener('blur',function(){if(HOLD.k) padUp(HOLD.k);});   // ушёл фокус с окна — отпустить
+
+function boot(){
+  // Открыли файл двойным кликом — без сервера страница пустая. Сказать, как надо.
+  if(location.protocol==='file:'){
+    document.body.innerHTML='<div style="max-width:620px;margin:12vh auto;padding:28px 32px;border:1px solid #2e383d;border-radius:8px;background:#101315;font:15px/1.6 Bahnschrift,system-ui,sans-serif;color:#e4ebe6">'+
+      '<div style="font-size:28px;letter-spacing:.3em;color:#b4f23a;font-weight:700">SPOTTY</div>'+
+      '<p style="margin:16px 0 8px">Эта страница открывается не двойным кликом, а через маленький сервер на ноутбуке — он даёт ей детали 3D, траектории из прошивки и связь с роботом.</p>'+
+      '<p style="margin:0 0 8px">Запусти <b style="color:#b4f23a">ЗАПУСК_ПУЛЬТА.bat</b> в корне папки Spotty (или <b>Пульт\\ПУЛЬТ.bat</b>). Браузер сам откроет <b>http://127.0.0.1:8090/</b>.</p>'+
+      '<p style="margin:0;color:#86918c">Чёрное окно сервера не закрывать, пока работает пульт. Нужен Python 3.</p></div>';
+    return;
+  }
+  resize(); bindPad(); bindVisExit();
+  el('bLive').className='live on';
+  drawGaits(); drawParams();
+  fetch('/pult/info').then(function(r){return r.json()}).then(function(d){
+    el('robotAddr').value=d.robot; FW={ok:d.fw.ok,fw:d.fw}; CH=d.ch||null; PWM=d.pwm||null;
+    if(d.fw.ok) return fetch('/sim/geom?gait=0').then(function(r){return r.json()}).then(function(g){
+      if(g.geom_mm){G=g.geom_mm; if(!LIM) LIM=g.limits_deg; disp=clampRest(); if(U_SRC==='встроенная') U=null;}
+      if(g.tricks&&g.tricks.length){TRICKS=g.tricks; TRICK_SRC='из прошивки ('+g.tricks.length+')'; trkBuilt=false;}
+      if(g.profiles&&g.profiles.length){PROFILES=g.profiles; PROF_SRC='из прошивки ('+g.profiles.length+')'; profBuilt=false;}
+    });
+  }).catch(function(){}).then(loadURDF).then(loadMeshes).then(function(){fwBanner();});
+  addLine('──────── ЖИВОЙ: углы с робота ────────');
+  liveLoop();
+  requestAnimationFrame(frame);
+}
+boot();
+</script>
+</body>
+</html>

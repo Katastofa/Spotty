@@ -1,0 +1,153 @@
+<?xml version="1.0"?>
+<robot name="spotty">
+  <link name="base_link">
+    <inertial><mass value="1.2"/><origin xyz="0 0 0"/><inertia ixx="0.00125" ixy="0" ixz="0" iyy="0.0065" iyz="0" izz="0.00725"/></inertial>
+    <visual><origin xyz="0 0 0"/><geometry><box size="0.25 0.1 0.05"/></geometry><material name="body"><color rgba="0.20 0.45 0.75 1"/></material></visual>
+    <collision><origin xyz="0 0 0"/><geometry><box size="0.25 0.1 0.05"/></geometry></collision>
+  </link>
+
+  <joint name="j_abduct_FL" type="revolute">
+    <parent link="base_link"/><child link="hip_FL"/>
+    <origin xyz="0.11 0.05 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="hip_FL">
+    <inertial><mass value="0.1"/><origin xyz="0 0.0225 0"/><inertia ixx="2.0475e-05" ixy="0" ixz="0" iyy="7.2e-06" iyz="0" izz="2.0475e-05"/></inertial>
+    <visual><origin xyz="0 0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry><material name="m"><color rgba="0.85 0.85 0.88 1"/></material></visual>
+    <collision><origin xyz="0 0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry></collision>
+  </link>
+  <joint name="j_thigh_FL" type="revolute">
+    <parent link="hip_FL"/><child link="thigh_FL"/>
+    <origin xyz="0 0.045 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="thigh_FL">
+    <inertial><mass value="0.15"/><origin xyz="0 0 -0.055"/><inertia ixx="0.00015665" ixy="0" ixz="0" iyy="0.00015665" iyz="0" izz="1.08e-05"/></inertial>
+    <visual><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry><material name="m"><color rgba="0.95 0.60 0.15 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry></collision>
+  </link>
+  <joint name="j_knee_FL" type="revolute">
+    <parent link="thigh_FL"/><child link="shank_FL"/>
+    <origin xyz="0 0 -0.11"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.7" upper="-0.05" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="shank_FL">
+    <inertial><mass value="0.08"/><origin xyz="0 0 -0.065"/><inertia ixx="0.000115547" ixy="0" ixz="0" iyy="0.000115547" iyz="0" izz="5.76e-06"/></inertial>
+    <visual><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry><material name="m"><color rgba="0.30 0.30 0.34 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry></collision>
+    <visual><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry><material name="foot"><color rgba="0.12 0.12 0.12 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry></collision>
+  </link>
+
+  <joint name="j_abduct_FR" type="revolute">
+    <parent link="base_link"/><child link="hip_FR"/>
+    <origin xyz="0.11 -0.05 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="hip_FR">
+    <inertial><mass value="0.1"/><origin xyz="0 -0.0225 0"/><inertia ixx="2.0475e-05" ixy="0" ixz="0" iyy="7.2e-06" iyz="0" izz="2.0475e-05"/></inertial>
+    <visual><origin xyz="0 -0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry><material name="m"><color rgba="0.85 0.85 0.88 1"/></material></visual>
+    <collision><origin xyz="0 -0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry></collision>
+  </link>
+  <joint name="j_thigh_FR" type="revolute">
+    <parent link="hip_FR"/><child link="thigh_FR"/>
+    <origin xyz="0 -0.045 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="thigh_FR">
+    <inertial><mass value="0.15"/><origin xyz="0 0 -0.055"/><inertia ixx="0.00015665" ixy="0" ixz="0" iyy="0.00015665" iyz="0" izz="1.08e-05"/></inertial>
+    <visual><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry><material name="m"><color rgba="0.95 0.60 0.15 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry></collision>
+  </link>
+  <joint name="j_knee_FR" type="revolute">
+    <parent link="thigh_FR"/><child link="shank_FR"/>
+    <origin xyz="0 0 -0.11"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.7" upper="-0.05" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="shank_FR">
+    <inertial><mass value="0.08"/><origin xyz="0 0 -0.065"/><inertia ixx="0.000115547" ixy="0" ixz="0" iyy="0.000115547" iyz="0" izz="5.76e-06"/></inertial>
+    <visual><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry><material name="m"><color rgba="0.30 0.30 0.34 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry></collision>
+    <visual><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry><material name="foot"><color rgba="0.12 0.12 0.12 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry></collision>
+  </link>
+
+  <joint name="j_abduct_RL" type="revolute">
+    <parent link="base_link"/><child link="hip_RL"/>
+    <origin xyz="-0.11 0.05 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="hip_RL">
+    <inertial><mass value="0.1"/><origin xyz="0 0.0225 0"/><inertia ixx="2.0475e-05" ixy="0" ixz="0" iyy="7.2e-06" iyz="0" izz="2.0475e-05"/></inertial>
+    <visual><origin xyz="0 0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry><material name="m"><color rgba="0.85 0.85 0.88 1"/></material></visual>
+    <collision><origin xyz="0 0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry></collision>
+  </link>
+  <joint name="j_thigh_RL" type="revolute">
+    <parent link="hip_RL"/><child link="thigh_RL"/>
+    <origin xyz="0 0.045 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="thigh_RL">
+    <inertial><mass value="0.15"/><origin xyz="0 0 -0.055"/><inertia ixx="0.00015665" ixy="0" ixz="0" iyy="0.00015665" iyz="0" izz="1.08e-05"/></inertial>
+    <visual><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry><material name="m"><color rgba="0.95 0.60 0.15 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry></collision>
+  </link>
+  <joint name="j_knee_RL" type="revolute">
+    <parent link="thigh_RL"/><child link="shank_RL"/>
+    <origin xyz="0 0 -0.11"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.7" upper="-0.05" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="shank_RL">
+    <inertial><mass value="0.08"/><origin xyz="0 0 -0.065"/><inertia ixx="0.000115547" ixy="0" ixz="0" iyy="0.000115547" iyz="0" izz="5.76e-06"/></inertial>
+    <visual><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry><material name="m"><color rgba="0.30 0.30 0.34 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry></collision>
+    <visual><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry><material name="foot"><color rgba="0.12 0.12 0.12 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry></collision>
+  </link>
+
+  <joint name="j_abduct_RR" type="revolute">
+    <parent link="base_link"/><child link="hip_RR"/>
+    <origin xyz="-0.11 -0.05 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="-0.8" upper="0.8" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="hip_RR">
+    <inertial><mass value="0.1"/><origin xyz="0 -0.0225 0"/><inertia ixx="2.0475e-05" ixy="0" ixz="0" iyy="7.2e-06" iyz="0" izz="2.0475e-05"/></inertial>
+    <visual><origin xyz="0 -0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry><material name="m"><color rgba="0.85 0.85 0.88 1"/></material></visual>
+    <collision><origin xyz="0 -0.0225 0" rpy="1.5708 0 0"/><geometry><cylinder radius="0.012" length="0.045"/></geometry></collision>
+  </link>
+  <joint name="j_thigh_RR" type="revolute">
+    <parent link="hip_RR"/><child link="thigh_RR"/>
+    <origin xyz="0 -0.045 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.6" upper="2.6" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="thigh_RR">
+    <inertial><mass value="0.15"/><origin xyz="0 0 -0.055"/><inertia ixx="0.00015665" ixy="0" ixz="0" iyy="0.00015665" iyz="0" izz="1.08e-05"/></inertial>
+    <visual><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry><material name="m"><color rgba="0.95 0.60 0.15 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.055" rpy="0 0 0"/><geometry><cylinder radius="0.012" length="0.11"/></geometry></collision>
+  </link>
+  <joint name="j_knee_RR" type="revolute">
+    <parent link="thigh_RR"/><child link="shank_RR"/>
+    <origin xyz="0 0 -0.11"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.7" upper="-0.05" effort="4.0" velocity="8.0"/>
+  </joint>
+  <link name="shank_RR">
+    <inertial><mass value="0.08"/><origin xyz="0 0 -0.065"/><inertia ixx="0.000115547" ixy="0" ixz="0" iyy="0.000115547" iyz="0" izz="5.76e-06"/></inertial>
+    <visual><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry><material name="m"><color rgba="0.30 0.30 0.34 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.065" rpy="0 0 0"/><geometry><cylinder radius="0.0102" length="0.13"/></geometry></collision>
+    <visual><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry><material name="foot"><color rgba="0.12 0.12 0.12 1"/></material></visual>
+    <collision><origin xyz="0 0 -0.13"/><geometry><sphere radius="0.018"/></geometry></collision>
+  </link>
+
+</robot>
