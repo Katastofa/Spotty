@@ -30,7 +30,6 @@
 
 | Файл | Назначение |
 |---|---|
-| `PROJECT_RULES.md` | Источник истины: правила работы с проектом, CONFIRMED / UNKNOWN |
 | `ARCHITECTURE.md` | Текущая архитектура + ASCII-диаграмма + пробелы переноса |
 | `HARDWARE.md` | Таблица: компонент / подтверждённое значение / доказательство / что проверить |
 | `CALIBRATION.md` | Кандидаты / измерения / проверенные значения (два последних раздела пусты) |
@@ -43,7 +42,6 @@
 
 ```
 .
-├── PROJECT_RULES.md               CURRENT   источник истины
 ├── README.md               CURRENT   этот файл
 ├── ARCHITECTURE.md         CURRENT
 ├── HARDWARE.md             CURRENT
@@ -90,7 +88,6 @@
 
 | Файл | Основание |
 |---|---|
-| `PROJECT_RULES.md` | Зафиксированная оператором архитектура |
 | `README.md`, `ARCHITECTURE.md`, `HARDWARE.md`, `CALIBRATION.md`, `SAFETY.md`, `PROJECT_STATUS.md` | Проектная документация текущего этапа |
 | `frames_stl/OpenQuadruped/**` | Механическая платформа подтверждена оператором |
 

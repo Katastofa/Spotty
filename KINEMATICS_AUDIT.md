@@ -225,7 +225,7 @@
 
 | № | Противоречие | Где |
 |---|---|---|
-| **C1** | `PROJECT_RULES.md` (объявлен ground truth) в четырёх местах пишет **OpenQuadruped**; остальные документы — SpotMicro/KDY0523. `PROJECT_RULES.md` не обновлён | `PROJECT_RULES.md:38,66,74,80` |
+| **C1** | файл правил проекта (объявлен ground truth) в четырёх местах пишет **OpenQuadruped**; остальные документы — SpotMicro/KDY0523. `PROJECT_RULES.md` не обновлён | `PROJECT_RULES.md:38,66,74,80` |
 | **C2** | `ARCHITECTURE.md`: «ременная нога (Pulley / Idler / Bridge)» — это узел OpenQuadruped. **STL подтверждают: ремня нет, привод прямой** | `ARCHITECTURE.md` блок механики |
 | **C3** | Масштаб серво: 5.57 (`spotty_config.h`, `PROJECT_STATUS.md`) против 5.534 (`HARDWARE.md`) и 5.54 (`servo_calib.ino:693`) | — |
 | **C4** | ~~STL фактически напечатанных деталей отсутствуют~~ | **СНЯТО архивом SpotPupPi** |
